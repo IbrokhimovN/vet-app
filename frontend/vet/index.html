@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Veterinar profili</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="status" class="status"></div>
+
+  <main id="app" hidden>
+    <header class="header header-row">
+      <div>
+        <h1>👨‍⚕️ Vet kabineti</h1>
+        <p id="who" class="muted"></p>
+      </div>
+      <button id="bell" class="bell" hidden>🔔<span id="bell-count" class="bell-count" hidden>0</span></button>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="profile">Profil</button>
+      <button class="tab" data-tab="calls">📥 Chaqiruvlar</button>
+      <button class="tab" data-tab="tender">📢 Tender</button>
+    </nav>
+
+    <!-- KELGAN CHAQIRUVLAR -->
+    <section id="tab-calls" hidden>
+      <ul id="calls-list" class="list"></ul>
+      <p id="calls-empty" class="muted center" hidden>Hozircha chaqiruv yo'q</p>
+    </section>
+
+    <!-- TENDER LENTASI -->
+    <section id="tab-tender" hidden>
+      <ul id="tender-list" class="list"></ul>
+      <p id="tender-empty" class="muted center" hidden>Mos so'rov yo'q</p>
+    </section>
+
+    <!-- PROFIL -->
+    <div id="tab-profile">
+    <!-- Bo'sh/band holat -->
+    <section class="card">
+      <label class="switch-row">
+        <span>Ish qabul qilaman (bo'sh)</span>
+        <input type="checkbox" id="is_available" />
+      </label>
+      <p id="verified-badge" class="muted"></p>
+    </section>
+
+    <!-- Asosiy profil -->
+    <section class="card">
+      <h2>Asosiy ma'lumotlar</h2>
+      <label>Bio (o'zingiz haqingizda)
+        <textarea id="bio" rows="3" placeholder="Tajriba, yo'nalish..."></textarea>
+      </label>
+      <label>Klinika nomi
+        <input type="text" id="clinic_name" placeholder="Masalan: VetClinic" />
+      </label>
+      <label>Tajriba (yil)
+        <input type="number" id="experience_years" min="0" max="60" />
+      </label>
+    </section>
+
+    <!-- Mutaxassisliklar -->
+    <section class="card">
+      <h2>Mutaxassisliklar</h2>
+      <div id="specializations" class="chips"></div>
+    </section>
+
+    <!-- Chaqiruv turlari -->
+    <section class="card">
+      <h2>Qabul qiladigan chaqiruvlar</h2>
+      <label class="switch-row"><span>🏠 Uyga boraman</span>
+        <input type="checkbox" id="accepts_home_visit" /></label>
+      <label class="switch-row"><span>💬 Online konsultatsiya</span>
+        <input type="checkbox" id="accepts_online" /></label>
+    </section>
+
+    <!-- Joylashuv -->
+    <section class="card">
+      <h2>Joylashuv</h2>
+      <label>Shahar <input type="text" id="city" placeholder="Toshkent" /></label>
+      <label>Tuman <input type="text" id="district" placeholder="Chilonzor" /></label>
+      <label>Manzil <input type="text" id="address" placeholder="Ko'cha, uy" /></label>
+      <button type="button" id="geo-btn" class="btn-secondary">📍 Joriy joylashuvni olish</button>
+      <p id="geo-info" class="muted"></p>
+    </section>
+
+    <!-- Xizmatlar -->
+    <section class="card">
+      <h2>Xizmatlar</h2>
+      <ul id="services" class="services"></ul>
+      <div class="service-add">
+        <input type="text" id="svc-title" placeholder="Xizmat nomi" />
+        <input type="number" id="svc-price" placeholder="Narx" />
+        <button type="button" id="svc-add" class="btn-secondary">+ Qo'shish</button>
+      </div>
+    </section>
+
+    <button type="button" id="save-btn" class="btn-primary">💾 Saqlash</button>
+    </div><!-- /tab-profile -->
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

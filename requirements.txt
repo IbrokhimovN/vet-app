@@ -1,0 +1,24 @@
+# --- Core ---
+Django==5.0.6
+djangorestframework==3.15.1
+django-environ==0.11.2
+django-cors-headers==4.4.0
+
+# --- Auth ---
+djangorestframework-simplejwt==5.3.1
+
+# --- Database ---
+psycopg2-binary==2.9.9
+
+# --- Async / tasks ---
+celery==5.4.0
+redis==5.0.7
+
+# --- Telegram & HTTP ---
+requests==2.32.3
+
+# --- Media ---
+Pillow==10.4.0
+
+# --- Server (prod) ---
+gunicorn==22.0.0

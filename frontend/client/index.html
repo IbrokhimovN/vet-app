@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Veterinar topish</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="status" class="status">Yuklanmoqda...</div>
+
+  <!-- RO'YXAT EKRANI -->
+  <main id="list-view" hidden>
+    <header class="header header-row">
+      <h1>🐾 Veterinar topish</h1>
+      <button id="bell" class="bell" hidden>🔔<span id="bell-count" class="bell-count" hidden>0</span></button>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="search">🔍 Qidiruv</button>
+      <button class="tab" data-tab="requests">📋 So'rovlarim</button>
+    </nav>
+
+    <section id="tab-requests" hidden>
+      <ul id="my-requests" class="vet-list"></ul>
+      <p id="req-empty" class="muted center" hidden>Hali so'rov yo'q</p>
+    </section>
+
+    <section id="tab-search">
+      <div class="search-bar">
+        <input type="text" id="search-q" placeholder="🔍 Ism yoki klinika..." />
+      </div>
+
+      <div id="spec-filter" class="chips scroll-x"></div>
+
+      <div class="toolbar">
+        <select id="type-filter">
+          <option value="">Barcha turlar</option>
+          <option value="home">🏠 Uyga boradi</option>
+          <option value="online">💬 Online</option>
+        </select>
+        <select id="sort">
+          <option value="rating">⭐ Reyting</option>
+          <option value="distance">📍 Masofa</option>
+        </select>
+      </div>
+
+      <ul id="vet-list" class="vet-list"></ul>
+      <p id="empty" class="muted center" hidden>Hech narsa topilmadi</p>
+    </section>
+  </main>
+
+  <!-- VET SAHIFASI -->
+  <main id="detail-view" hidden>
+    <button id="back-btn" class="back">‹ Orqaga</button>
+    <div id="detail-content"></div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
