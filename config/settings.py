@@ -153,5 +153,10 @@ CELERY_TASK_ALWAYS_EAGER = env("CELERY_TASK_ALWAYS_EAGER", default=DEBUG)
 # --- Telegram botlar (ARCHITECTURE.md: 2 ta bot) ---
 TELEGRAM_CLIENT_BOT_TOKEN = env("TELEGRAM_CLIENT_BOT_TOKEN", default="")
 TELEGRAM_VET_BOT_TOKEN = env("TELEGRAM_VET_BOT_TOKEN", default="")
+# Botlar /start'da ochadigan Mini App manzillari (HTTPS bo'lishi shart — Telegram talabi).
+#   Mijoz:  https://<domen>/client/
+#   Vet:    https://<domen>/vet/
+TELEGRAM_CLIENT_WEBAPP_URL = env("TELEGRAM_CLIENT_WEBAPP_URL", default="")
+TELEGRAM_VET_WEBAPP_URL = env("TELEGRAM_VET_WEBAPP_URL", default="")
 # initData auth_date shu soniyadan eski bo'lsa rad etiladi (replay himoyasi).
 TELEGRAM_AUTH_MAX_AGE = env.int("TELEGRAM_AUTH_MAX_AGE", default=86400)

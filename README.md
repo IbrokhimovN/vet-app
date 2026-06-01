@@ -67,6 +67,23 @@ python manage.py runserver
 DB ulanishi `DATABASE_URL` orqali (`.env`). Default ham PostgreSQL
 (`postgres://vetapp:vetapp@localhost:5433/vetapp`) — SQLite ishlatilmaydi.
 
+## Telegram botlar (2 ta)
+
+Botlar yengil: foydalanuvchini kutib oladi va Mini App'ni ochadigan tugma beradi.
+Asosiy mantiq API'da. Qo'shimcha kutubxonasiz — `requests` long-polling.
+
+```bash
+# .env'da to'ldiring (HTTPS shart — dev'da ngrok/cloudflared tunnel):
+#   TELEGRAM_CLIENT_BOT_TOKEN=...   TELEGRAM_CLIENT_WEBAPP_URL=https://<tunnel>/client/
+#   TELEGRAM_VET_BOT_TOKEN=...      TELEGRAM_VET_WEBAPP_URL=https://<tunnel>/vet/
+
+python -m bots.client_bot      # mijoz boti
+python -m bots.vet_bot         # vet boti
+```
+
+- `/start` → kutib olish + Mini App'ni ochuvchi tugma; chat menyu tugmasi ham ulanadi.
+- Token yoki URL bo'lmasa bot chiroyli xabar bilan to'xtaydi.
+
 ## Loyiha tuzilmasi
 
 ```
