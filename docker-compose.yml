@@ -62,6 +62,31 @@ services:
       redis:
         condition: service_healthy
 
+  # --- Telegram botlar ---
+  # Ishlashi uchun .env.docker'da TOKEN va WEBAPP_URL to'ldirilgan bo'lishi shart.
+  # Bo'sh bo'lsa bot chiroyli xabar bilan to'xtaydi (restart: no — qayta urinmaydi).
+  client_bot:
+    build: .
+    command: python -m bots.client_bot
+    env_file:
+      - .env.docker
+    volumes:
+      - .:/app
+    depends_on:
+      web:
+        condition: service_started
+
+  vet_bot:
+    build: .
+    command: python -m bots.vet_bot
+    env_file:
+      - .env.docker
+    volumes:
+      - .:/app
+    depends_on:
+      web:
+        condition: service_started
+
 volumes:
   pgdata:
   media:
