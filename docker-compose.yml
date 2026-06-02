@@ -5,6 +5,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: vetapp
       POSTGRES_USER: vetapp
@@ -23,6 +24,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     # Host port chiqarilmaydi (mahalliy Redis bilan to'qnashmasligi uchun).
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -32,6 +34,7 @@ services:
 
   web:
     build: .
+    restart: unless-stopped
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py runserver 0.0.0.0:8000"
@@ -50,6 +53,7 @@ services:
 
   worker:
     build: .
+    restart: unless-stopped
     command: celery -A config worker -l info
     env_file:
       - .env.docker
@@ -64,9 +68,9 @@ services:
 
   # --- Telegram botlar ---
   # Ishlashi uchun .env.docker'da TOKEN va WEBAPP_URL to'ldirilgan bo'lishi shart.
-  # Bo'sh bo'lsa bot chiroyli xabar bilan to'xtaydi (restart: no — qayta urinmaydi).
   client_bot:
     build: .
+    restart: unless-stopped
     command: python -m bots.client_bot
     env_file:
       - .env.docker
@@ -78,6 +82,7 @@ services:
 
   vet_bot:
     build: .
+    restart: unless-stopped
     command: python -m bots.vet_bot
     env_file:
       - .env.docker
