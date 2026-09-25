@@ -5,58 +5,325 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Veterinar topish</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="style.css" />
+  <script src="https://api-maps.yandex.ru/2.1/?apikey=6f3fca54-4fcb-4f0c-8e44-e4f4d835fd88&lang=uz_UZ"></script>
+  <link rel="stylesheet" href="style.css?v=20260924d" />
+  <script src="i18n.js?v=20260924d"></script>
+  <script src="regions.js?v=20260924d"></script>
 </head>
 <body>
   <div id="status" class="status">Yuklanmoqda...</div>
 
-  <!-- RO'YXAT EKRANI -->
-  <main id="list-view" hidden>
-    <header class="header header-row">
-      <h1>🐾 Veterinar topish</h1>
-      <button id="bell" class="bell" hidden>🔔<span id="bell-count" class="bell-count" hidden>0</span></button>
-    </header>
+  <div id="app" hidden>
 
-    <nav class="tabs">
-      <button class="tab active" data-tab="search">🔍 Qidiruv</button>
-      <button class="tab" data-tab="requests">📋 So'rovlarim</button>
-    </nav>
+    <!-- ================= HOME ================= -->
+    <main id="screen-home" class="screen">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow" id="home-date">—</div>
+          <h1 id="home-greeting">Salom 👋</h1>
+        </div>
+        <button id="bell" class="icon-btn" hidden>🔔<span id="bell-count" class="dot" hidden>0</span></button>
+      </header>
 
-    <section id="tab-requests" hidden>
-      <ul id="my-requests" class="vet-list"></ul>
-      <p id="req-empty" class="muted center" hidden>Hali so'rov yo'q</p>
-    </section>
-
-    <section id="tab-search">
-      <div class="search-bar">
-        <input type="text" id="search-q" placeholder="🔍 Ism yoki klinika..." />
+      <div class="hero">
+        <span class="tag">🐾 <span data-i18n="hero_tag">MENING YORDAMCHIM</span></span>
+        <h2 data-i18n="hero_title">Sog'lom hayvon,<br />xotirjam kun.</h2>
+        <p data-i18n="hero_sub">Ishonchli veterinarlarni toping va bir necha bosishda chaqiring.</p>
+        <span class="emoji">🐕</span>
       </div>
 
-      <div id="spec-filter" class="chips scroll-x"></div>
+      <div class="section"><h3 data-i18n="home_help_title">Kimga yordam kerak?</h3></div>
+      <div id="home-specs" class="spec-row"></div>
 
+      <div class="section"><h3 data-i18n="home_quick_title">Tezkor xizmatlar</h3></div>
+      <div class="quick-grid">
+        <div class="quick-card c1" data-goto="vets">
+          <div class="qi">🩺</div>
+          <div class="qt" data-i18n="qt_vet">Vet topish</div>
+        </div>
+        <div class="quick-card c2" data-goto="visits">
+          <div class="qi">📋</div>
+          <div class="qt" data-i18n="qt_visits">So'rovlarim</div>
+        </div>
+        <div class="quick-card c3" data-goto="profile">
+          <div class="qi">🐾</div>
+          <div class="qt" data-i18n="qt_pets">Hayvonlarim</div>
+        </div>
+        <div class="quick-card c4" data-goto="tender">
+          <div class="qi">📢</div>
+          <div class="qt" data-i18n="qt_tender">Ochiq so'rov</div>
+        </div>
+      </div>
+
+      <div id="home-active-wrap" hidden>
+        <div class="section"><h3 data-i18n="active_request_title">Faol so'rovingiz</h3></div>
+        <div id="home-active" class="active-request"></div>
+      </div>
+
+      <div class="section">
+        <h3 data-i18n="nearby_vets_title">Yaqin atrofdagi veterinarlar</h3>
+        <span class="link" data-goto="vets" data-i18n="link_all">Barchasi</span>
+      </div>
+      <ul id="home-vets" class="vet-list"></ul>
+    </main>
+
+    <!-- ================= VETS ================= -->
+    <main id="screen-vets" class="screen" hidden>
+      <header class="topbar">
+        <div>
+          <div class="eyebrow" data-i18n="vets_eyebrow">Qidiruv</div>
+          <h1 data-i18n="vets_title">Veterinar toping</h1>
+        </div>
+      </header>
+
+      <div class="search-bar">
+        <input type="text" id="search-q" placeholder="🔍 Ism yoki klinika..." data-i18n-ph="search_placeholder" />
+      </div>
+      <div id="spec-filter" class="chips"></div>
       <div class="toolbar">
         <select id="type-filter">
-          <option value="">Barcha turlar</option>
-          <option value="home">🏠 Uyga boradi</option>
-          <option value="online">💬 Online</option>
+          <option value="" data-i18n="type_all">Barcha turlar</option>
+          <option value="home" data-i18n="type_home">🏠 Uyga boradi</option>
+          <option value="online" data-i18n="type_online">💬 Online</option>
         </select>
         <select id="sort">
-          <option value="rating">⭐ Reyting</option>
-          <option value="distance">📍 Masofa</option>
+          <option value="rating" data-i18n="sort_rating">⭐ Reyting</option>
+          <option value="distance" data-i18n="sort_distance">📍 Masofa</option>
         </select>
       </div>
 
-      <ul id="vet-list" class="vet-list"></ul>
-      <p id="empty" class="muted center" hidden>Hech narsa topilmadi</p>
-    </section>
-  </main>
+      <div class="seg" style="margin-top:10px">
+        <button class="seg-btn active" data-view="list" data-i18n="seg_list">📋 Ro'yxat</button>
+        <button class="seg-btn" data-view="map" data-i18n="seg_map">🗺️ Xarita</button>
+      </div>
 
-  <!-- VET SAHIFASI -->
-  <main id="detail-view" hidden>
-    <button id="back-btn" class="back">‹ Orqaga</button>
-    <div id="detail-content"></div>
-  </main>
+      <div id="vets-list-view">
+        <div class="section"><h3 id="vets-count">Veterinarlar</h3></div>
+        <ul id="vet-list" class="vet-list"></ul>
+        <div id="empty" class="center" hidden>
+          <p class="muted" style="margin:0 0 10px" data-i18n="empty_vets">Hech narsa topilmadi</p>
+          <button class="btn-secondary" data-goto="tender" style="width:calc(100% - 32px)" data-i18n="empty_vets_cta">📢 Ochiq so'rov joylashtiring</button>
+        </div>
+        <button id="vets-load-more" class="btn-secondary" style="width:calc(100% - 32px);margin:0 16px 16px" hidden data-i18n="load_more">Yana yuklash</button>
+      </div>
 
-  <script src="app.js"></script>
+      <div id="vets-map-view" hidden>
+        <div class="map-topbar">
+          <div class="map-loc-pill" id="map-loc-pill">
+            <span class="map-loc-icon">📍</span>
+            <div class="map-loc-text">
+              <div class="map-loc-main" id="map-loc-main">—</div>
+              <div class="map-loc-sub" id="map-loc-sub"></div>
+            </div>
+          </div>
+          <div class="map-topbar-actions">
+            <button class="map-icon-btn" id="map-list-btn" title="Ro'yxat">📋</button>
+            <button class="map-icon-btn" id="map-search-btn" title="Qidirish">🔍</button>
+          </div>
+        </div>
+        <div id="vets-map" class="vets-map"></div>
+        <p id="map-empty" class="muted center" hidden data-i18n="map_empty">Joylashuvi ko'rsatilgan veterinar topilmadi</p>
+        <div id="map-bottom-card" class="map-bottom-card" hidden>
+          <span class="map-bottom-icon">📍</span>
+          <span class="map-bottom-text" id="map-bottom-text"></span>
+          <button class="map-bottom-btn" id="map-bottom-view-btn" data-i18n="map_view_btn">Ko'rish →</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- ================= VET DETAIL ================= -->
+    <main id="screen-vet-detail" class="screen" hidden>
+      <header class="topbar">
+        <button id="back-btn" class="back-btn">‹</button>
+        <div style="text-align:right">
+          <div class="eyebrow" data-i18n="vd_eyebrow">Profil</div>
+        </div>
+      </header>
+      <div id="detail-content"></div>
+    </main>
+
+    <!-- ================= TENDER (ochiq so'rov) ================= -->
+    <main id="screen-tender" class="screen" hidden>
+      <header class="topbar">
+        <button id="tender-back-btn" class="back-btn">‹</button>
+        <div style="text-align:right"><div class="eyebrow" data-i18n="tender_eyebrow">Ochiq so'rov</div></div>
+      </header>
+
+      <div class="section"><h3 data-i18n="tender_new_title">Yangi ochiq so'rov</h3></div>
+      <div class="card">
+        <div class="chips" id="tender-spec-filter" style="padding:0 0 10px"></div>
+        <div class="type-opts" id="tender-type-opts">
+          <div class="type-opt active" data-type="home" data-i18n="type_home_short">🏠 Uyga</div>
+          <div class="type-opt" data-type="online" data-i18n="type_online">💬 Online</div>
+          <div class="type-opt" data-type="contact" data-i18n="type_contact">📞 Kontakt</div>
+        </div>
+        <div class="chips" id="tender-pet-picker" style="padding:0 0 8px"></div>
+        <select id="tender-city" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:14px;margin-bottom:8px">
+          <option value="" data-i18n="select_region">— Viloyatni tanlang —</option>
+        </select>
+        <select id="tender-district" disabled style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:14px;margin-bottom:8px">
+          <option value="" data-i18n="select_district">— Avval viloyatni tanlang —</option>
+        </select>
+        <textarea id="tender-note" class="tender-note" rows="4" placeholder="Muammoni qisqacha yozing..." data-i18n-ph="tender_note_placeholder"></textarea>
+        <input type="number" id="tender-budget" min="0" placeholder="Taxminiy byudjet (ixtiyoriy, so'm)" data-i18n-ph="tender_budget_placeholder" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:14px" />
+      </div>
+      <button class="btn-primary" id="tender-send-btn" data-i18n="tender_send">Ochiq so'rov joylash</button>
+
+      <div class="section"><h3 data-i18n="tender_mine_title">Mening ochiq so'rovlarim</h3></div>
+      <ul id="tender-list" class="vet-list" style="list-style:none;padding:0"></ul>
+      <p id="tender-empty" class="muted center" hidden data-i18n="tender_empty">Hali ochiq so'rov yo'q</p>
+    </main>
+
+    <!-- ================= BILDIRISHNOMALAR ================= -->
+    <main id="screen-notifications" class="screen" hidden>
+      <header class="topbar">
+        <button id="notif-back-btn" class="back-btn">‹</button>
+        <div style="text-align:right"><div class="eyebrow" data-i18n="notif_title">Bildirishnomalar</div></div>
+      </header>
+      <ul id="notif-list" class="vet-list" style="list-style:none;padding:0"></ul>
+      <p id="notif-empty" class="muted center" hidden data-i18n="notif_empty">Bildirishnoma yo'q</p>
+    </main>
+
+    <!-- ================= VISITS ================= -->
+    <main id="screen-visits" class="screen" hidden>
+      <header class="topbar">
+        <div>
+          <div class="eyebrow" data-i18n="visits_eyebrow">Mening rejam</div>
+          <h1 data-i18n="visits_title">So'rovlarim</h1>
+        </div>
+      </header>
+      <div class="seg">
+        <button class="seg-btn active" data-seg="upcoming" data-i18n="seg_upcoming">Faol</button>
+        <button class="seg-btn" data-seg="past" data-i18n="seg_past">Tugagan</button>
+      </div>
+      <ul id="visits-list" class="vet-list" style="list-style:none;padding:0"></ul>
+      <p id="visits-empty" class="muted center" hidden data-i18n="visits_empty">Hozircha so'rov yo'q</p>
+    </main>
+
+    <!-- ================= PROFILE ================= -->
+    <main id="screen-profile" class="screen" hidden>
+      <header class="topbar">
+        <div>
+          <div class="eyebrow" data-i18n="profile_eyebrow">Hisob</div>
+          <h1 data-i18n="profile_title">Profil</h1>
+        </div>
+        <button id="profile-edit-btn" class="icon-btn">✎</button>
+      </header>
+
+      <div class="profile-card">
+        <div class="av-wrap">
+          <div class="av" id="profile-avatar" style="cursor:pointer" title="Rasm qo'yish uchun bosing" data-i18n-title="photo_hint">?</div>
+          <span class="av-cam" id="profile-avatar-cam">📷</span>
+        </div>
+        <input type="file" id="photo-input" accept="image/png,image/jpeg,image/webp" style="display:none" />
+        <div class="pi">
+          <div class="n" id="profile-name">—</div>
+          <div class="r" id="profile-sub">—</div>
+        </div>
+      </div>
+
+      <div id="profile-edit-wrap" class="card" hidden>
+        <div class="edit-form">
+          <div class="row2">
+            <input type="text" id="edit-first" placeholder="Ism" data-i18n-ph="ph_first" />
+            <input type="text" id="edit-last" placeholder="Familiya" data-i18n-ph="ph_last" />
+          </div>
+          <input type="tel" id="edit-phone" placeholder="+998901234567" />
+          <button class="btn-primary" style="margin:4px 0 0" id="edit-save" data-i18n="save">Saqlash</button>
+        </div>
+      </div>
+
+      <div class="stat-strip">
+        <div class="s"><div class="v" id="stat-pets">0</div><div class="l" data-i18n="stat_pets">Hayvon</div></div>
+        <div class="s"><div class="v" id="stat-active">0</div><div class="l" data-i18n="stat_active">Faol so'rov</div></div>
+        <div class="s"><div class="v" id="stat-total">0</div><div class="l" data-i18n="stat_total">Jami so'rov</div></div>
+      </div>
+
+      <div class="section"><h3 data-i18n="location_title">Joylashuv</h3></div>
+      <div class="card">
+        <p class="muted" style="margin:0 0 10px;font-size:12.5px" data-i18n="client_location_hint">Yaqin atrofdagi veterinarlarni topish uchun kerak. Viloyat/tuman tanlansa, aniq joylashuv taxminan shu markazga qo'yiladi.</p>
+        <label class="field"><span data-i18n="city_label">Viloyat</span>
+          <select id="profile-city"><option value="" data-i18n="select_region">— Viloyatni tanlang —</option></select>
+        </label>
+        <label class="field"><span data-i18n="district_label">Tuman</span>
+          <select id="profile-district" disabled><option value="" data-i18n="select_district">— Avval viloyatni tanlang —</option></select>
+        </label>
+        <button type="button" id="profile-geo-btn" class="btn-secondary" data-i18n="geo_btn">📍 Joriy joylashuvni olish (GPS)</button>
+        <p id="profile-geo-info" class="muted" style="margin:8px 0 0;font-size:12.5px"></p>
+      </div>
+
+      <div class="section"><h3 data-i18n="my_pets_title">Mening hayvonlarim</h3></div>
+      <div class="card">
+        <div id="pets-list"></div>
+        <p id="pets-empty" class="muted" style="margin:4px 0" hidden data-i18n="pets_empty">Hali hayvon qo'shilmagan</p>
+        <div class="add-form">
+          <input type="text" id="pet-name" placeholder="Ism (mas. Bars)" data-i18n-ph="ph_pet_name" />
+          <input type="text" id="pet-species" placeholder="Turi (mas. It)" data-i18n-ph="ph_pet_species" />
+          <button id="pet-add">+</button>
+        </div>
+      </div>
+
+      <div class="section"><h3 data-i18n="settings_title">Sozlamalar</h3></div>
+      <div class="settings-list">
+        <div class="settings-row" id="lang-row">
+          <div class="ic">🌐</div>
+          <div class="tx"><div class="tt" data-i18n="language_title">Til</div><div class="ss" id="lang-current">O'zbekcha</div></div>
+          <div class="chev">›</div>
+        </div>
+        <div class="settings-row" id="help-row">
+          <div class="ic">💬</div>
+          <div class="tx"><div class="tt" data-i18n="help_title">Yordam markazi</div><div class="ss" data-i18n="help_sub">Savol yoki muammo bo'lsa</div></div>
+          <div class="chev">›</div>
+        </div>
+        <div class="settings-row" id="privacy-row">
+          <div class="ic">🔒</div>
+          <div class="tx"><div class="tt" data-i18n="privacy_title">Maxfiylik siyosati</div><div class="ss" data-i18n="privacy_sub">Qanday ma'lumot yig'amiz</div></div>
+          <div class="chev">›</div>
+        </div>
+        <div class="settings-row" id="oferta-row">
+          <div class="ic">📄</div>
+          <div class="tx"><div class="tt" data-i18n="oferta_title">Ommaviy oferta</div><div class="ss" data-i18n="oferta_sub">Foydalanish shartlari</div></div>
+          <div class="chev">›</div>
+        </div>
+      </div>
+    </main>
+
+    <div id="identity-modal" class="privacy-modal" hidden>
+      <div class="privacy-panel">
+        <div class="privacy-head">
+          <h2 data-i18n="identity_onboard_title">Profilingizni to'ldiring</h2>
+        </div>
+        <p class="muted" style="margin:0 0 14px;font-size:13px" data-i18n="identity_onboard_sub">Veterinar siz bilan bog'lanishi uchun ism va telefon raqamingizni kiriting</p>
+        <div class="edit-form">
+          <div class="row2">
+            <input type="text" id="onb-first" placeholder="Ism" data-i18n-ph="ph_first" />
+            <input type="text" id="onb-last" placeholder="Familiya" data-i18n-ph="ph_last" />
+          </div>
+          <input type="tel" id="onb-phone" placeholder="+998901234567" />
+          <button type="button" class="btn-primary" id="onb-save" style="margin-top:4px" data-i18n="save">Saqlash</button>
+          <button type="button" class="btn-secondary" id="onb-skip" style="margin-top:6px" data-i18n="identity_onboard_skip">Keyinroq</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="privacy-modal" class="privacy-modal" hidden>
+      <div class="privacy-panel">
+        <div class="privacy-head">
+          <h2 data-i18n="privacy_title">Maxfiylik siyosati</h2>
+          <button type="button" id="privacy-close" class="icon-btn">✕</button>
+        </div>
+        <div class="privacy-body" data-i18n="privacy_body"></div>
+      </div>
+    </div>
+
+    <nav class="tabbar">
+      <button class="tab-btn active" data-tab="home"><span class="ti">🏠</span><span data-i18n="nav_home">Bosh sahifa</span></button>
+      <button class="tab-btn" data-tab="vets"><span class="ti">🩺</span><span data-i18n="nav_vets">Vetlar</span></button>
+      <button class="tab-btn" data-tab="visits"><span class="ti">📅</span><span data-i18n="nav_visits">So'rovlar</span></button>
+      <button class="tab-btn" data-tab="profile"><span class="ti">👤</span><span data-i18n="nav_profile">Profil</span></button>
+    </nav>
+  </div>
+
+  <script src="app.js?v=20260924d"></script>
 </body>
 </html>

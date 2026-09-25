@@ -1,0 +1,72 @@
+name: Tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: vetapp
+          POSTGRES_USER: vetapp
+          POSTGRES_PASSWORD: vetapp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vetapp -d vetapp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_NAME: vetapp
+      DB_USER: vetapp
+      DB_PASSWORD: vetapp
+      DB_HOST: localhost
+      DB_PORT: 5432
+      SECRET_KEY: ci-test-secret-key-not-for-production
+      CELERY_TASK_ALWAYS_EAGER: "True"
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Django system checks
+        run: python manage.py check
+
+      - name: Run migrations
+        run: python manage.py migrate --noinput
+
+      - name: Run tests
+        run: python manage.py test --noinput --verbosity 2
+
+  # Ikkala image (backend va frontend) yig'ilishini tekshiradi.
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build ./backend
+      - name: Build frontend image
+        run: docker build ./frontend
+      - name: Validate Caddyfile
+        run: docker run --rm -v "$PWD/frontend/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile

@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# Virtual muhit
+venv/
+.venv/
+env/
+
+# Django / lokal ma'lumotlar
+*.log
+db.sqlite3
+db.sqlite3-journal
+/staticfiles/
+/media/
+/.offsets/
+/backups/
+
+# Muhit (sirlar) — faqat namunalar git'da
+.env
+.env.*
+!.env.example
+!.env.prod.example

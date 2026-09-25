@@ -1,0 +1,28 @@
+# --- Core ---
+Django==5.2.17          # 5.2 LTS (migratsiyalar 5.1+ API: CheckConstraint(condition=...))
+djangorestframework==3.15.2
+django-environ==0.11.2
+django-cors-headers==4.4.0
+
+# --- Auth ---
+djangorestframework-simplejwt==5.3.1
+
+# --- Database ---
+psycopg2-binary==2.9.9
+
+# --- Async / tasks ---
+celery==5.4.0
+redis==5.0.7
+
+# --- Telegram & HTTP ---
+requests==2.32.3
+
+# --- Media ---
+Pillow==10.4.0
+
+# --- Server (prod) ---
+gunicorn==22.0.0
+whitenoise==6.11.0
+
+# --- Xatolik kuzatuvi (SENTRY_DSN bo'sh bo'lsa faollashmaydi, config/settings.py) ---
+sentry-sdk==2.69.2

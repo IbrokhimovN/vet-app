@@ -1,0 +1,21 @@
+# Frontend — lokal dev override (docker-compose.yml ustiga):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Oddiy HTTP: http://localhost:8090  (mijoz: /client/, vet: /vet/, admin: /admin-panel/)
+# Front fayllari bind-mount — o'zgarish darhol ko'rinadi.
+# Avval backend dev stack ishga tushirilgan bo'lishi kerak (../backend/docker-compose.dev.yml).
+
+services:
+  frontend:
+    env_file: !reset []
+    environment:
+      SITE_ADDRESS: ":80"
+    ports: !override
+      - "8090:80"
+    volumes:
+      - media:/srv/media:ro
+      - ./client:/srv/client:ro
+      - ./vet:/srv/vet:ro
+      - ./admin:/srv/admin:ro
+      - caddy_data:/data
+      - caddy_config:/config

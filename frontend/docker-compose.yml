@@ -1,0 +1,45 @@
+# Vet-App FRONTEND — production stack (Caddy: statik Mini App'lar + HTTPS + /api proksi).
+# Backend ALOHIDA loyiha: ../backend/docker-compose.yml — u AVVAL ishga tushirilishi kerak,
+# chunki `vetapp-edge` tarmog'i va `vetapp-media` volume'ni o'sha yaratadi.
+#
+# Ishga tushirish (server):
+#   cp .env.prod.example .env.prod      # va to'ldiring (domen)
+#   docker compose up -d --build
+#
+# Lokal dev:  docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+name: vetapp-frontend
+
+services:
+  frontend:
+    build: .
+    image: vetapp-frontend:latest
+    restart: unless-stopped
+    env_file: [.env.prod]          # SITE_ADDRESS, ADMIN_ALLOW, BACKEND_UPSTREAM
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - media:/srv/media:ro        # backend yuklagan rasmlar
+      - caddy_data:/data           # HTTPS sertifikatlar shu yerda saqlanadi
+      - caddy_config:/config
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+networks:
+  edge:
+    name: vetapp-edge
+    external: true                 # backend loyihasi yaratadi
+
+volumes:
+  media:
+    name: vetapp-media
+    external: true                 # backend loyihasi yaratadi
+  caddy_data:
+  caddy_config:

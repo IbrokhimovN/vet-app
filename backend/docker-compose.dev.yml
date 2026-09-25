@@ -1,0 +1,58 @@
+# Backend — lokal dev override (docker-compose.yml ustiga):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Farqlari: .env.docker (lokal qiymatlar), kod bind-mount (o'zgarishlar darhol),
+# portlar host'ga ochiladi: API http://localhost:8000, DB localhost:5433.
+# Frontend'ni ham ko'rish uchun: ../frontend/docker-compose.dev.yml (http://localhost:8090)
+
+services:
+  db:
+    env_file: !reset []
+    environment:
+      POSTGRES_DB: vetapp
+      POSTGRES_USER: vetapp
+      POSTGRES_PASSWORD: vetapp
+    ports:
+      - "5433:5432"
+
+  backend:
+    env_file: !override [.env.docker]
+    volumes:
+      - .:/app
+      - media:/app/media
+    ports:
+      - "8000:8000"
+
+  worker:
+    env_file: !override [.env.docker]
+    volumes:
+      - .:/app
+      - media:/app/media
+
+  beat:
+    env_file: !override [.env.docker]
+    volumes:
+      - .:/app
+
+  client_bot:
+    env_file: !override [.env.docker]
+    volumes:
+      - .:/app
+      - bot_offsets:/app/.offsets
+
+  vet_bot:
+    env_file: !override [.env.docker]
+    volumes:
+      - .:/app
+      - bot_offsets:/app/.offsets
+
+  backup:
+    env_file: !reset []
+    environment:
+      POSTGRES_DB: vetapp
+      POSTGRES_USER: vetapp
+      POSTGRES_PASSWORD: vetapp
+      DB_HOST: db
+    volumes:
+      - ./scripts/backup_loop.sh:/backup_loop.sh:ro
+      - ./backups:/backups

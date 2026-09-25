@@ -1,25 +1,16 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.Python
+# Har bir qism o'z .gitignore'iga ega: backend/.gitignore, frontend/.gitignore.
+# Bu yerda faqat umumiy narsalar.
 
-# Virtual muhit
-venv/
-.venv/
-env/
-
-# Django
-*.log
-db.sqlite3
-db.sqlite3-journal
-/staticfiles/
-/media/
-
-# Muhit (sirlar)
+# Muhit (sirlar) — ehtiyot chorasi
 .env
+.env.*
+!.env.example
+!.env.prod.example
 
 # IDE / OS
 .vscode/
 .idea/
 .DS_Store
+
+# Office lock fayllari
+.~lock.*#

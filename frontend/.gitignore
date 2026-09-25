@@ -1,0 +1,8 @@
+# Muhit (sirlar) — faqat namunalar git'da
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# Vaqtinchalik sinov sahifalari
+_*.html

@@ -1,0 +1,4 @@
+Dockerfile
+.dockerignore
+# Vaqtinchalik sinov sahifalari image'ga tushmasin
+**/_*.html

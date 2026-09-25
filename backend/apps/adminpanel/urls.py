@@ -1,0 +1,42 @@
+"""Admin panel API marshrutlari (/api/v1/admin/...)."""
+from django.urls import path
+
+from .views import (
+    AdminCallListView,
+    AdminLoginView,
+    AdminNotificationListView,
+    AdminNotificationRetryView,
+    AdminReportListView,
+    AdminReportResolveView,
+    AdminReviewDeleteView,
+    AdminReviewListView,
+    AdminServiceRequestListView,
+    AdminUserDeleteView,
+    AdminUserListView,
+    AdminUserToggleActiveView,
+    AdminVetListView,
+    AdminVetToggleTopView,
+    AdminVetToggleVerifyView,
+    AdminVetWalletAdjustView,
+    DashboardStatsView,
+)
+
+urlpatterns = [
+    path("login/", AdminLoginView.as_view(), name="admin-login"),
+    path("stats/", DashboardStatsView.as_view(), name="admin-stats"),
+    path("users/", AdminUserListView.as_view(), name="admin-users"),
+    path("users/<int:pk>/toggle-active/", AdminUserToggleActiveView.as_view(), name="admin-user-toggle"),
+    path("users/<int:pk>/", AdminUserDeleteView.as_view(), name="admin-user-delete"),
+    path("vets/", AdminVetListView.as_view(), name="admin-vets"),
+    path("vets/<int:pk>/toggle-verify/", AdminVetToggleVerifyView.as_view(), name="admin-vet-toggle"),
+    path("vets/<int:pk>/toggle-top/", AdminVetToggleTopView.as_view(), name="admin-vet-toggle-top"),
+    path("vets/<int:pk>/wallet-adjust/", AdminVetWalletAdjustView.as_view(), name="admin-vet-wallet-adjust"),
+    path("calls/", AdminCallListView.as_view(), name="admin-calls"),
+    path("tenders/", AdminServiceRequestListView.as_view(), name="admin-tenders"),
+    path("reviews/", AdminReviewListView.as_view(), name="admin-reviews"),
+    path("reviews/<int:pk>/", AdminReviewDeleteView.as_view(), name="admin-review-delete"),
+    path("reports/", AdminReportListView.as_view(), name="admin-reports"),
+    path("reports/<int:pk>/resolve/", AdminReportResolveView.as_view(), name="admin-report-resolve"),
+    path("notifications/", AdminNotificationListView.as_view(), name="admin-notifications"),
+    path("notifications/<int:pk>/retry/", AdminNotificationRetryView.as_view(), name="admin-notification-retry"),
+]

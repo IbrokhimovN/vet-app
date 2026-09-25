@@ -1,0 +1,122 @@
+# Vet-App BACKEND — production stack (Django API + Celery + Telegram botlar + Postgres + Redis).
+# Frontend ALOHIDA loyiha: ../frontend/docker-compose.yml
+#
+# Ishga tushirish (server) — AVVAL backend, KEYIN frontend:
+#   cp .env.prod.example .env.prod      # va to'ldiring
+#   docker compose up -d --build
+#   docker compose exec backend python manage.py createsuperuser
+#
+# Frontend bilan ulanish:
+#   - tarmoq `vetapp-edge`  — frontend (Caddy) backend'ga shu orqali yetadi (alias: vetapp-backend)
+#   - volume `vetapp-media` — foydalanuvchi rasmlari, frontend faqat o'qiydi
+# Ikkalasini ham shu loyiha yaratadi, frontend ularni `external` sifatida ulaydi.
+#
+# Lokal dev:  docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+name: vetapp-backend
+
+x-backend: &backend
+  build: .
+  image: vetapp-backend:latest
+  restart: unless-stopped
+  env_file: [.env.prod]
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: [.env.prod]          # POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # --- API ---
+  backend:
+    <<: *backend
+    environment:
+      RUN_MIGRATIONS: "1"          # migrate + collectstatic faqat shu konteynerda
+    volumes:
+      - media:/app/media
+    networks:
+      default:
+      edge:
+        aliases: [vetapp-backend]  # frontend shu nom bilan murojaat qiladi
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8000), 3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  # --- Fon vazifalari (Telegram xabarnomalar) ---
+  worker:
+    <<: *backend
+    command: celery -A config worker -l info
+    volumes:
+      - media:/app/media
+    depends_on:
+      backend: { condition: service_healthy }
+
+  # --- Davriy vazifalar (masalan: javobsiz chaqiruvni "muddati tugadi" qilish) ---
+  beat:
+    <<: *backend
+    command: celery -A config beat -l info --pidfile=
+    depends_on:
+      backend: { condition: service_healthy }
+
+  # --- Telegram botlar ---
+  # .env.prod'da TOKEN va WEBAPP_URL to'ldirilgan bo'lishi shart.
+  client_bot:
+    <<: *backend
+    command: python -m bots.client_bot
+    volumes:
+      - bot_offsets:/app/.offsets
+    depends_on:
+      backend: { condition: service_healthy }
+
+  vet_bot:
+    <<: *backend
+    command: python -m bots.vet_bot
+    volumes:
+      - bot_offsets:/app/.offsets
+    depends_on:
+      backend: { condition: service_healthy }
+
+  # --- Avtomatik zaxira nusxa (10-bo'lim: avval qo'lda edi) ---
+  # BACKUP_HOUR / BACKUP_KEEP_DAYS bilan sozlanadi (.env.prod, ixtiyoriy).
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: [.env.prod]
+    volumes:
+      - ./scripts/backup_loop.sh:/backup_loop.sh:ro
+      - ./backups:/backups
+    entrypoint: ["/bin/sh", "/backup_loop.sh"]
+    depends_on:
+      db: { condition: service_healthy }
+
+networks:
+  edge:
+    name: vetapp-edge
+
+volumes:
+  pgdata:
+  bot_offsets:
+  media:
+    name: vetapp-media

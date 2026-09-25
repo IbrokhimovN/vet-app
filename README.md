@@ -1,103 +1,46 @@
 # Vet-App
 
 Telegram Mini App orqali uy hayvonlari egalari veterinarlarni topadi va chaqiradi.
-Veterinarlar uchun alohida Mini App. Backend: **Django + DRF**.
+Veterinarlar uchun alohida Mini App, administratorlar uchun veb panel.
 
 Arxitektura: [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 
-## Texnologiyalar
+## Loyiha ikki mustaqil qismdan iborat
 
-Django 5 · DRF · SimpleJWT · PostgreSQL · Celery + Redis · Docker · Telegram Bot API
+Har bir qismning o'z kodi, Dockerfile'i, `docker-compose.yml`i, `.env` fayllari, `.gitignore`i va README'si bor:
 
-## Docker bilan ishga tushirish (tavsiya — PostgreSQL + Redis + Celery)
+| Qism | Papka | Nima | Yo'riqnoma |
+|---|---|---|---|
+| **Backend** | [`backend/`](./backend) | Django + DRF API, Celery, Telegram botlar, PostgreSQL, Redis | [`backend/README.md`](./backend/README.md) |
+| **Frontend** | [`frontend/`](./frontend) | Mijoz va vet Mini App'lari, admin panel (Caddy orqali, HTTPS) | [`frontend/README.md`](./frontend/README.md) |
 
-Eng oson yo'l. Postgres, Redis, Django va Celery worker bitta buyruq bilan ko'tariladi:
+Ikkalasi alohida ishga tushiriladi. Ular umumiy Docker tarmog'i (`vetapp-edge`) va media
+volume'i (`vetapp-media`) orqali ulanadi. **Tartib: avval backend, keyin frontend.**
+
+```
+vet-app/
+  backend/    Dockerfile · docker-compose.yml · docker-compose.dev.yml · .env.prod.example · .env.example · scripts/
+  frontend/   Dockerfile · docker-compose.yml · docker-compose.dev.yml · .env.prod.example · Caddyfile
+  docs/       taqdimot va qo'llanma (pptx)
+  .github/    CI (GitHub shu joyni talab qiladi)
+```
+
+## Tezkor boshlash (production)
 
 ```bash
-docker compose up --build        # birinchi marta (rasm quriladi)
-# keyingilarida: docker compose up -d
+# 1. Backend
+cd backend
+cp .env.prod.example .env.prod          # to'ldiring: SECRET_KEY, parollar, tokenlar, domen
+docker compose up -d --build
+docker compose exec backend python manage.py createsuperuser
 
-# Admin foydalanuvchi (ixtiyoriy)
-docker compose exec web python manage.py createsuperuser
+# 2. Frontend
+cd ../frontend
+cp .env.prod.example .env.prod          # to'ldiring: domen (SITE_ADDRESS), ADMIN_ALLOW
+docker compose up -d --build
 ```
 
-| Manzil | Tavsif |
-|---|---|
-| http://localhost:8090/client/ | Mijoz Mini App |
-| http://localhost:8090/vet/ | Veterinar Mini App |
-| http://localhost:8090/admin/ | Admin panel |
-| http://localhost:8090/api/v1/ | API (v1) |
-
-- **DB:** PostgreSQL 16 (`db` service), **broker:** Redis 7 (`redis` service).
-- Sozlamalar `.env.docker`'da; `CELERY_TASK_ALWAYS_EAGER=False` — worker haqiqatan async ishlaydi.
-- Loyiha papkasi container'ga ulangan — kod o'zgarishi darhol qayta yuklanadi (runserver).
-- To'xtatish: `docker compose down` · ma'lumotlar bilan o'chirish: `docker compose down -v`.
-- Loglar: `docker compose logs -f web` yoki `... worker`.
-
-> Host portlari band bo'lsa: web `8090:8000`, DB `5433:5432`'ga o'tkazilgan, redis host'ga chiqarilmagan.
-
-## O'rnatish (dev — virtual muhit + Docker DB)
-
-Ma'lumotlar bazasi **PostgreSQL**. Faqat DB'ni Docker'da ko'tarib, Django'ni venv'da
-yuritish mumkin:
-
-```bash
-# 1. Virtual muhit
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# 2. Muhit sozlamalari
-cp .env.example .env        # DATABASE_URL allaqachon localhost:5433 ga sozlangan
-
-# 3. Faqat PostgreSQL'ni Docker'da ko'taramiz (host porti 5433)
-docker compose up -d db
-
-# 4. Migratsiya + admin
-python manage.py migrate
-python manage.py createsuperuser
-
-# 5. Server
-python manage.py runserver
-```
-
-- Admin panel: http://127.0.0.1:8000/admin/
-- API (v1): http://127.0.0.1:8000/api/v1/
-
-DB ulanishi `DATABASE_URL` orqali (`.env`). Default ham PostgreSQL
-(`postgres://vetapp:vetapp@localhost:5433/vetapp`) — SQLite ishlatilmaydi.
-
-## Telegram botlar (2 ta)
-
-Botlar yengil: foydalanuvchini kutib oladi va Mini App'ni ochadigan tugma beradi.
-Asosiy mantiq API'da. Qo'shimcha kutubxonasiz — `requests` long-polling.
-
-```bash
-# .env'da to'ldiring (HTTPS shart — dev'da ngrok/cloudflared tunnel):
-#   TELEGRAM_CLIENT_BOT_TOKEN=...   TELEGRAM_CLIENT_WEBAPP_URL=https://<tunnel>/client/
-#   TELEGRAM_VET_BOT_TOKEN=...      TELEGRAM_VET_WEBAPP_URL=https://<tunnel>/vet/
-
-python -m bots.client_bot      # mijoz boti
-python -m bots.vet_bot         # vet boti
-```
-
-- `/start` → kutib olish + Mini App'ni ochuvchi tugma; chat menyu tugmasi ham ulanadi.
-- Token yoki URL bo'lmasa bot chiroyli xabar bilan to'xtaydi.
-
-## Loyiha tuzilmasi
-
-```
-config/        — Django sozlamalari, urls, celery
-apps/
-  accounts/    — User, AuthIdentity, Telegram auth (modellar tayyor)
-  vets/        — VetProfile, mutaxassislik, xizmatlar, qidiruv
-  pets/        — Pet
-  requests/    — CallRequest (to'g'ridan) + ServiceRequest/Offer (tender)
-  reviews/     — Review
-  notifications/ — Telegram bot xabarlari (Celery)
-frontend/      — client/ va vet/ Mini App'lari (HTML/CSS/JS)
-bots/          — 2 ta Telegram bot
-```
+Batafsil: har bir qismning README'sida.
 
 ## Holat (yo'l xaritasi — ARCHITECTURE.md 11-bo'lim)
 
@@ -108,4 +51,4 @@ bots/          — 2 ta Telegram bot
 - [x] **5. Chaqiruv + tender oqimi** — Pet + CallRequest + ServiceRequest/Offer + frontlar (17 test)
 - [x] **6. Bildirishnomalar** — Notification modeli + Celery + Telegram Bot API + in-app lenta (11 test)
 - [x] **7. Izohlar / reyting** — Review modeli + avto reyting (signal) + izoh front (9 test)
-- [ ] 8. Deploy (Nginx, SSL)
+- [x] **8. Deploy** — alohida backend/frontend image'lari, Caddy (avtomatik HTTPS), admin IP cheklovi, zaxira skripti
