@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from apps.pets.models import Pet
 from apps.vets.models import Specialization, VetProfile
+from apps.vets.utils import haversine_km
 
 from .models import CallRequest, Offer, OfferStatus, ServiceRequest, ServiceStatus
 
@@ -41,6 +42,15 @@ class ClientMiniSerializer(serializers.Serializer):
 CONNECTED_CALL_STATUSES = ("accepted", "on_way", "completed")
 
 
+def _hide_exact_location(data, fields):
+    """Mijozning aniq joyi (amalda uy manzili) telefon kabi bog'lanishgacha
+    yashiriladi — vetga faqat masofa ko'rsatiladi."""
+    data["location_hidden"] = any(data.get(f) not in (None, "") for f in fields)
+    for f in fields:
+        data[f] = "" if f == "address" else None
+    return data
+
+
 # ------------------------- REJIM A: CallRequest -------------------------
 
 class CallRequestSerializer(serializers.ModelSerializer):
@@ -55,12 +65,13 @@ class CallRequestSerializer(serializers.ModelSerializer):
     pet_info = PetMiniSerializer(source="pet", read_only=True)
     has_review = serializers.SerializerMethodField()
     my_review = serializers.SerializerMethodField()
+    distance_km = serializers.SerializerMethodField()
 
     class Meta:
         model = CallRequest
         fields = (
             "id", "vet", "vet_info", "client_info", "pet", "pet_info", "type", "status",
-            "scheduled_at", "address", "lat", "lng", "note",
+            "scheduled_at", "address", "lat", "lng", "distance_km", "note",
             "price_agreed", "has_review", "my_review", "created_at",
             "responded_at", "completed_at",
         )
@@ -74,6 +85,19 @@ class CallRequestSerializer(serializers.ModelSerializer):
         if not review:
             return None
         return {"id": review.id, "stars": review.stars, "comment": review.comment}
+
+    def get_distance_km(self, obj):
+        return haversine_km(obj.vet.lat, obj.vet.lng, obj.lat, obj.lng)
+
+    def to_representation(self, obj):
+        data = super().to_representation(obj)
+        request = self.context.get("request")
+        viewer_is_client = request is not None and request.user.id == obj.client_id
+        if not viewer_is_client and obj.status not in CONNECTED_CALL_STATUSES:
+            _hide_exact_location(data, ("address", "lat", "lng"))
+        else:
+            data["location_hidden"] = False
+        return data
 
     def get_vet_info(self, obj):
         data = VetMiniSerializer(obj.vet).data
@@ -126,12 +150,13 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
     my_review = serializers.SerializerMethodField()
     my_offer = serializers.SerializerMethodField()
     client_info = serializers.SerializerMethodField()
+    distance_km = serializers.SerializerMethodField()
 
     class Meta:
         model = ServiceRequest
         fields = (
             "id", "specialization", "specialization_info", "pet", "pet_info",
-            "type", "city", "district", "lat", "lng", "note", "budget_hint",
+            "type", "city", "district", "lat", "lng", "distance_km", "note", "budget_hint",
             "status", "offers_count", "assigned_offer_info", "has_review", "my_review", "my_offer",
             "client_info", "created_at", "expires_at", "completed_at",
         )
@@ -145,6 +170,28 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
                 "icon": obj.specialization.icon,
             }
         return None
+
+    def get_distance_km(self, obj):
+        request = self.context.get("request")
+        profile = getattr(request.user, "vet_profile", None) if request else None
+        if not profile:
+            return None
+        return haversine_km(profile.lat, profile.lng, obj.lat, obj.lng)
+
+    def to_representation(self, obj):
+        data = super().to_representation(obj)
+        request = self.context.get("request")
+        user_id = request.user.id if request else None
+        offer = obj.assigned_offer
+        is_winner = (
+            obj.status in (ServiceStatus.ASSIGNED, ServiceStatus.COMPLETED)
+            and offer is not None and offer.vet.user_id == user_id
+        )
+        if user_id != obj.client_id and not is_winner:
+            _hide_exact_location(data, ("lat", "lng"))
+        else:
+            data["location_hidden"] = False
+        return data
 
     def get_offers_count(self, obj):
         return obj.offers.filter(status=OfferStatus.SENT).count()

@@ -303,3 +303,10 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 .onb-select:disabled { opacity: 0.6; }
 #onb-skip[hidden] { display: none; }
+
+.map-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;
+  margin-top: 8px; padding: 10px 12px; border: 1.5px solid var(--primary); border-radius: var(--radius-sm);
+  background: var(--primary-soft, #fbe3d5); color: var(--primary-dark, var(--primary)); font-size: 13.5px; font-weight: 700; cursor: pointer;
+}
+.map-btn:active { opacity: 0.8; }

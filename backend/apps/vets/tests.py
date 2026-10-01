@@ -5,7 +5,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import Role, User
 
-from .models import Service, Specialization, VetProfile
+from .models import Clinic, Service, Specialization, VetProfile
 
 
 class VetProfileTests(APITestCase):
@@ -186,3 +186,49 @@ class VetSearchTests(APITestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.json()["services"]), 1)
         self.assertEqual(float(resp.json()["min_price"]), 100000.0)
+
+
+class ClinicTests(APITestCase):
+    def setUp(self):
+        self.client_user = User.objects.create(username="cli_c", telegram_id=501, role=Role.CLIENT)
+        self.spec = Specialization.objects.create(name="Itlar", slug="itlar", icon="🐕")
+        self.sam = Clinic.objects.create(
+            name="Samarqand Vet", city="Samarqand viloyati", lat=39.65, lng=66.96,
+            is_verified=True, services="Rentgen — 80 000 so'm\n\nEmlash",
+        )
+        self.sam.specializations.add(self.spec)
+        self.tosh = Clinic.objects.create(name="Toshkent Vet", city="Toshkent shahri", lat=41.3, lng=69.24, is_verified=True)
+        Clinic.objects.create(name="Tasdiqlanmagan", city="Samarqand viloyati", is_verified=False)
+        Clinic.objects.create(name="Yopilgan", city="Samarqand viloyati", is_verified=True, is_active=False)
+        vet_user = User.objects.create(username="vet_c", telegram_id=502, role=Role.VET, first_name="Anvar")
+        self.vet = VetProfile.objects.create(user=vet_user, city="Samarqand viloyati", clinic=self.sam)
+        self.client.force_authenticate(self.client_user)
+
+    def test_list_shows_only_verified_active_and_filters_by_region(self):
+        names = {c["name"] for c in self.client.get(reverse("v1:clinic-list")).json()["results"]}
+        self.assertEqual(names, {"Samarqand Vet", "Toshkent Vet"})
+        sam_only = self.client.get(reverse("v1:clinic-list"), {"city": "Samarqand viloyati"}).json()["results"]
+        self.assertEqual([c["name"] for c in sam_only], ["Samarqand Vet"])
+        self.assertEqual(sam_only[0]["vets_count"], 1)
+
+    def test_distance_sort(self):
+        data = self.client.get(reverse("v1:clinic-list"), {"lat": 41.31, "lng": 69.25, "sort": "distance"}).json()["results"]
+        self.assertEqual(data[0]["name"], "Toshkent Vet")
+        self.assertIsNotNone(data[0]["distance_km"])
+
+    def test_detail_has_services_and_vets(self):
+        data = self.client.get(reverse("v1:clinic-detail", args=[self.sam.id])).json()
+        self.assertEqual(data["services"], ["Rentgen — 80 000 so'm", "Emlash"])
+        self.assertEqual([v["id"] for v in data["vets"]], [self.vet.id])
+
+    def test_hidden_clinic_detail_404(self):
+        hidden = Clinic.objects.get(name="Tasdiqlanmagan")
+        self.assertEqual(self.client.get(reverse("v1:clinic-detail", args=[hidden.id])).status_code, 404)
+
+    def test_vet_card_shows_clinic_only_when_visible(self):
+        vet = self.client.get(reverse("v1:vet-search")).json()["results"][0]
+        self.assertEqual(vet["clinic_info"], {"id": self.sam.id, "name": "Samarqand Vet"})
+        self.sam.is_verified = False
+        self.sam.save()
+        vet = self.client.get(reverse("v1:vet-search")).json()["results"][0]
+        self.assertIsNone(vet["clinic_info"])

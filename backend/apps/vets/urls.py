@@ -2,6 +2,8 @@
 from django.urls import path
 
 from .views import (
+    ClinicDetailView,
+    ClinicListView,
     ServiceDetailView,
     ServiceListCreateView,
     SpecializationListView,
@@ -21,4 +23,6 @@ urlpatterns = [
     # Mijoz tomoni: qidiruv va sahifa
     path("vets/", VetSearchView.as_view(), name="vet-search"),
     path("vets/<int:pk>/", VetDetailView.as_view(), name="vet-detail"),
+    path("clinics/", ClinicListView.as_view(), name="clinic-list"),
+    path("clinics/<int:pk>/", ClinicDetailView.as_view(), name="clinic-detail"),
 ]

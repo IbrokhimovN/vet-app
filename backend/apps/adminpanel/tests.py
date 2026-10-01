@@ -10,7 +10,7 @@ from apps.moderation.models import Report, ReportReason
 from apps.notifications.models import Notification, NotificationKind
 from apps.requests.models import CallRequest, CallStatus, Offer, ServiceRequest, ServiceStatus
 from apps.reviews.models import Review
-from apps.vets.models import VetProfile
+from apps.vets.models import Clinic, VetProfile
 
 
 class AdminBase(APITestCase):
@@ -233,3 +233,36 @@ class ActionTests(AdminBase):
         self.assertEqual(resp.status_code, 400)
         self.vet.refresh_from_db()
         self.assertEqual(self.vet.wallet_balance, 0)
+
+
+class ClinicAdminTests(AdminBase):
+    def test_create_edit_verify_and_attach_vet(self):
+        self.client.force_authenticate(self.admin)
+        resp = self.client.post("/api/v1/admin/clinics/", {
+            "name": "  Yangi Klinika ", "phone": "+998901234567", "city": "Toshkent shahri",
+            "district": "Chilonzor", "lat": 41.28, "lng": 69.2, "working_hours": "09:00–20:00",
+        }, format="json")
+        self.assertEqual(resp.status_code, 201, resp.content)
+        clinic_id = resp.json()["id"]
+        self.assertEqual(resp.json()["name"], "Yangi Klinika")
+        self.assertFalse(resp.json()["is_verified"])
+
+        resp = self.client.patch(f"/api/v1/admin/clinics/{clinic_id}/", {"is_24h": True}, format="json")
+        self.assertTrue(resp.json()["is_24h"])
+
+        self.assertTrue(self.client.post(f"/api/v1/admin/clinics/{clinic_id}/toggle-verify/").json()["is_verified"])
+
+        vet_user = User.objects.create(username="vv", telegram_id=901, role=Role.VET)
+        vet = VetProfile.objects.create(user=vet_user)
+        self.client.post(f"/api/v1/admin/vets/{vet.id}/set-clinic/", {"clinic": clinic_id}, format="json")
+        vet.refresh_from_db()
+        self.assertEqual((vet.clinic_id, vet.clinic_name), (clinic_id, "Yangi Klinika"))
+
+        self.client.post(f"/api/v1/admin/vets/{vet.id}/set-clinic/", {"clinic": None}, format="json")
+        vet.refresh_from_db()
+        self.assertIsNone(vet.clinic_id)
+
+    def test_non_admin_cannot_manage_clinics(self):
+        user = User.objects.create(username="plain", telegram_id=902, role=Role.CLIENT)
+        self.client.force_authenticate(user)
+        self.assertEqual(self.client.post("/api/v1/admin/clinics/", {"name": "X"}, format="json").status_code, 403)

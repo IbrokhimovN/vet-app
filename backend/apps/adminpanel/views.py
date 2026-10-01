@@ -25,10 +25,11 @@ from apps.notifications.models import Notification
 from apps.notifications.tasks import deliver_notification
 from apps.requests.models import CallRequest, CallStatus, Offer, ServiceRequest, ServiceStatus
 from apps.reviews.models import Review
-from apps.vets.models import VetProfile
+from apps.vets.models import Clinic, VetProfile
 
 from .serializers import (
     AdminCallSerializer,
+    AdminClinicSerializer,
     AdminNotificationSerializer,
     AdminReportSerializer,
     AdminReviewSerializer,
@@ -186,7 +187,7 @@ class AdminVetListView(generics.ListAPIView):
     permission_classes = [IsAdminUser]
 
     def get_queryset(self):
-        qs = VetProfile.objects.select_related("user").prefetch_related("specializations").order_by("-created_at")
+        qs = VetProfile.objects.select_related("user", "clinic").prefetch_related("specializations").order_by("-created_at")
         verified = self.request.query_params.get("verified")
         if verified == "1":
             qs = qs.filter(is_verified=True)
@@ -362,3 +363,62 @@ class AdminNotificationRetryView(APIView):
         notification.save(update_fields=["error"])
         deliver_notification.delay(notification.pk)
         return Response({"id": notification.id, "queued": True})
+
+
+class AdminClinicListCreateView(generics.ListCreateAPIView):
+    """GET/POST /admin/clinics/?verified=&q= — klinikalar (1-bosqich: faqat admin qo'shadi)."""
+
+    serializer_class = AdminClinicSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_queryset(self):
+        qs = Clinic.objects.prefetch_related("specializations", "vets__user").order_by("-created_at")
+        verified = self.request.query_params.get("verified")
+        if verified == "1":
+            qs = qs.filter(is_verified=True)
+        elif verified == "0":
+            qs = qs.filter(is_verified=False)
+        q = self.request.query_params.get("q")
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(city__icontains=q) | Q(address__icontains=q) | Q(phone__icontains=q))
+        return qs
+
+
+class AdminClinicDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """GET/PATCH/DELETE /admin/clinics/<id>/ — o'chirilganda vetlar klinikasiz qoladi (SET_NULL)."""
+
+    serializer_class = AdminClinicSerializer
+    permission_classes = [IsAdminUser]
+    queryset = Clinic.objects.prefetch_related("specializations", "vets__user")
+
+
+class AdminClinicToggleVerifyView(APIView):
+    """POST /admin/clinics/<id>/toggle-verify/ — mijozlarga faqat tasdiqlangani ko'rinadi."""
+
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, pk):
+        clinic = generics.get_object_or_404(Clinic, pk=pk)
+        clinic.is_verified = not clinic.is_verified
+        clinic.save(update_fields=["is_verified"])
+        return Response({"id": clinic.id, "is_verified": clinic.is_verified})
+
+
+class AdminVetSetClinicView(APIView):
+    """POST /admin/vets/<id>/set-clinic/ — {"clinic": <id> | null}."""
+
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, pk):
+        vet = generics.get_object_or_404(VetProfile, pk=pk)
+        clinic_id = request.data.get("clinic")
+        if clinic_id in (None, "", 0, "0"):
+            vet.clinic = None
+        else:
+            try:
+                vet.clinic = Clinic.objects.get(pk=int(clinic_id))
+            except (Clinic.DoesNotExist, TypeError, ValueError):
+                return Response({"detail": "Bunday klinika topilmadi."}, status=400)
+            vet.clinic_name = vet.clinic.name
+        vet.save(update_fields=["clinic", "clinic_name"])
+        return Response({"id": vet.id, "clinic": vet.clinic_id})

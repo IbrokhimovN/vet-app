@@ -1,7 +1,7 @@
 """vets serializerlari (ARCHITECTURE.md 6.2, 6.3)."""
 from rest_framework import serializers
 
-from .models import Service, Specialization, VetProfile
+from .models import Clinic, Service, Specialization, VetProfile
 
 
 class SpecializationSerializer(serializers.ModelSerializer):
@@ -25,6 +25,7 @@ class VetListSerializer(serializers.ModelSerializer):
     # View hisoblab beradi (Haversine); modelda yo'q.
     distance_km = serializers.FloatField(read_only=True, default=None)
     min_price = serializers.SerializerMethodField()
+    clinic_info = serializers.SerializerMethodField()
 
     class Meta:
         model = VetProfile
@@ -33,6 +34,7 @@ class VetListSerializer(serializers.ModelSerializer):
             "full_name",
             "photo",
             "clinic_name",
+            "clinic_info",
             "city",
             "district",
             "experience_years",
@@ -49,6 +51,13 @@ class VetListSerializer(serializers.ModelSerializer):
             "lat",
             "lng",
         )
+
+    def get_clinic_info(self, obj):
+        clinic = obj.clinic
+        # Tasdiqlanmagan/nofaol klinika mijozga ko'rsatilmaydi.
+        if not clinic or not clinic.is_active or not clinic.is_verified:
+            return None
+        return {"id": clinic.id, "name": clinic.name}
 
     def get_min_price(self, obj):
         prices = [s.price for s in obj.services.all()]
@@ -87,12 +96,14 @@ class VetProfileSerializer(serializers.ModelSerializer):
         required=False,
     )
     full_name = serializers.CharField(source="user.get_full_name", read_only=True)
+    clinic_info = serializers.SerializerMethodField()
 
     class Meta:
         model = VetProfile
         fields = (
             "id",
             "full_name",
+            "clinic_info",
             "bio",
             "experience_years",
             "clinic_name",
@@ -114,3 +125,37 @@ class VetProfileSerializer(serializers.ModelSerializer):
         )
         # Bu maydonlarni vet o'zi o'zgartira olmaydi (faqat admin/tizim).
         read_only_fields = ("is_verified", "rating_avg", "rating_count")
+
+    def get_clinic_info(self, obj):
+        return {"id": obj.clinic.id, "name": obj.clinic.name} if obj.clinic else None
+
+
+class ClinicListSerializer(serializers.ModelSerializer):
+    """Klinika kartasi (mijoz tomoni: ro'yxat va xarita)."""
+
+    specializations = SpecializationSerializer(many=True, read_only=True)
+    distance_km = serializers.FloatField(read_only=True, default=None)
+    vets_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Clinic
+        fields = (
+            "id", "name", "logo", "phone", "city", "district", "address", "lat", "lng",
+            "working_hours", "is_24h", "is_verified", "specializations", "distance_km", "vets_count",
+        )
+
+    def get_vets_count(self, obj):
+        return len(obj.vets.all())
+
+
+class ClinicDetailSerializer(ClinicListSerializer):
+    """Klinika sahifasi — tavsif, xizmatlar va shu klinikadagi vetlar."""
+
+    services = serializers.ListField(source="services_list", read_only=True)
+    vets = serializers.SerializerMethodField()
+
+    class Meta(ClinicListSerializer.Meta):
+        fields = ClinicListSerializer.Meta.fields + ("description", "services", "vets")
+
+    def get_vets(self, obj):
+        return VetListSerializer(obj.vets.all(), many=True, context=self.context).data

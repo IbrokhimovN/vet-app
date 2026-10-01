@@ -10,9 +10,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Service, Specialization, VetProfile
+from .models import Clinic, Service, Specialization, VetProfile
 from .permissions import IsVet
 from .serializers import (
+    ClinicDetailSerializer,
+    ClinicListSerializer,
     ServiceSerializer,
     SpecializationSerializer,
     VetDetailSerializer,
@@ -58,7 +60,7 @@ class VetSearchView(generics.ListAPIView):
 
     def get_queryset(self):
         qs = (
-            VetProfile.objects.select_related("user")
+            VetProfile.objects.select_related("user", "clinic")
             .prefetch_related("specializations", "services")
         )
         p = self.request.query_params
@@ -113,7 +115,7 @@ class VetDetailView(generics.RetrieveAPIView):
 
     serializer_class = VetDetailSerializer
     permission_classes = [IsAuthenticated]
-    queryset = VetProfile.objects.select_related("user").prefetch_related(
+    queryset = VetProfile.objects.select_related("user", "clinic").prefetch_related(
         "specializations", "services"
     )
 
@@ -176,3 +178,58 @@ class ServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Service.objects.filter(vet__user=self.request.user)
+
+
+def _visible_clinics():
+    return Clinic.objects.filter(is_active=True, is_verified=True).prefetch_related(
+        "specializations", "vets__user", "vets__clinic", "vets__specializations", "vets__services"
+    )
+
+
+class ClinicListView(generics.ListAPIView):
+    """
+    Klinikalar ro'yxati (mijoz tomoni). ?city= (viloyat), ?q= (nomi), ?spec= (slug),
+    ?lat=&lng= (masofa), ?sort=distance|name.
+    """
+
+    serializer_class = ClinicListSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = _visible_clinics()
+        p = self.request.query_params
+        if p.get("city"):
+            qs = qs.filter(region_q("city", p["city"]))
+        if p.get("q"):
+            qs = qs.filter(Q(name__icontains=p["q"]) | Q(address__icontains=p["q"]))
+        if p.get("spec"):
+            qs = qs.filter(specializations__slug=p["spec"])
+        return qs.distinct()
+
+    def list(self, request, *args, **kwargs):
+        clinics = list(self.get_queryset())
+        p = request.query_params
+        lat, lng = _parse_coord(p.get("lat")), _parse_coord(p.get("lng"))
+        for clinic in clinics:
+            clinic.distance_km = haversine_km(lat, lng, clinic.lat, clinic.lng)
+        if p.get("sort") == "distance" and lat is not None and lng is not None:
+            clinics.sort(key=lambda c: c.distance_km if c.distance_km is not None else float("inf"))
+        page = self.paginate_queryset(clinics)
+        serializer = self.get_serializer(page if page is not None else clinics, many=True)
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
+
+
+class ClinicDetailView(generics.RetrieveAPIView):
+    serializer_class = ClinicDetailSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return _visible_clinics()
+
+    def get_object(self):
+        clinic = super().get_object()
+        p = self.request.query_params
+        clinic.distance_km = haversine_km(_parse_coord(p.get("lat")), _parse_coord(p.get("lng")), clinic.lat, clinic.lng)
+        return clinic

@@ -6,6 +6,7 @@ Bildirishnoma Celery vazifalari (ARCHITECTURE.md 7-bo'lim).
 
 Dev'da CELERY_TASK_ALWAYS_EAGER=True bo'lgani uchun vazifalar sinxron bajariladi.
 """
+import html
 import logging
 
 from celery import shared_task
@@ -57,7 +58,9 @@ def deliver_notification(self, notification_id):
         n.save(update_fields=["error"])
         return
 
-    text = f"<b>{n.title}</b>\n{n.body}" if n.title else n.body
+    # parse_mode=HTML: foydalanuvchi matnidagi "<", "&" Telegram'ni xabarni rad etishga majbur qilardi.
+    title, body = html.escape(n.title or ""), html.escape(n.body or "")
+    text = f"<b>{title}</b>\n{body}" if title else body
     try:
         send_message(n.bot, chat_id, text)
     except TelegramSendError as exc:

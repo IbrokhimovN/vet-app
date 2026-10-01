@@ -19,6 +19,7 @@
     tenders: '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>',
     reviews: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
     reports: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+    clinics: '<path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M12 9v6"/><path d="M9 12h6"/>',
     notifications: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
   };
   const svg = (name) => `<svg viewBox="0 0 24 24">${ICONS[name]}</svg>`;
@@ -61,7 +62,7 @@
       columns: [
         ["ID", (r) => "#" + r.id],
         ["Veterinar", (r) => userCell(r.full_name.trim() || r.username, r.phone || "@" + r.username, r.photo)],
-        ["Shahar / Klinika", (r) => `${esc(r.city || "—")}<div class="sub muted">${esc(r.clinic_name || "")}</div>`],
+        ["Shahar / Klinika", (r) => `${esc(r.city || "—")}<div class="sub muted">${r.clinic ? "🏥 " + esc(r.clinic.name) : esc(r.clinic_name || "")}</div>`],
         ["Mutaxassislik", (r) => `<div class="clip">${esc(r.specializations.join(", ") || "—")}</div>`],
         ["Reyting", (r) => `<span class="stars">★</span> ${Number(r.rating_avg).toFixed(1)} <span class="muted">(${r.rating_count})</span>`],
         ["Hujjat", (r) => r.license_document ? `<a href="${esc(r.license_document)}" target="_blank" rel="noopener">📎 Ko'rish</a>` : `<span class="muted">Yuklanmagan</span>`],
@@ -81,6 +82,7 @@
           },
           ok: "Saqlandi",
         },
+        { label: "🏥 Klinikaga biriktirish", silent: true, run: () => openAttachClinic(r) },
         {
           label: "💰 Hamyonni to'ldirish/tuzatish",
           run: () => {
@@ -90,6 +92,27 @@
           },
           ok: "Hamyon yangilandi",
         },
+      ],
+    },
+    clinics: {
+      title: "Klinikalar", icon: "clinics", endpoint: "/clinics/", searchable: true, tabParam: "verified",
+      createLabel: "+ Klinika qo'shish", create: () => openClinicForm(null),
+      tabs: [["Barchasi", ""], ["Tasdiqlangan", "1"], ["Tasdiqlanmagan", "0"]],
+      columns: [
+        ["ID", (r) => "#" + r.id],
+        ["Klinika", (r) => userCell(r.name, r.phone || "—", r.logo)],
+        ["Manzil", (r) => `${esc([r.city, r.district].filter(Boolean).join(", ") || "—")}<div class="sub muted clip">${esc(r.address || "")}</div>`],
+        ["Ish vaqti", (r) => r.is_24h ? badge("24/7", "green") : esc(r.working_hours || "—")],
+        ["Vetlar", (r) => r.vets.length ? `<div class="clip">${esc(r.vets.map((v) => v.name).join(", "))}</div>` : `<span class="muted">—</span>`],
+        ["Xaritada", (r) => r.lat != null ? "📍 Bor" : `<span class="muted">Yo'q</span>`],
+        ["Hujjat", (r) => r.license_document ? `<a href="${esc(r.license_document)}" target="_blank" rel="noopener">📎 Ko'rish</a>` : `<span class="muted">Yuklanmagan</span>`],
+        ["Holat", (r) => `<div class="badges">${r.is_verified ? badge("Tasdiqlangan", "green") : badge("Tasdiqlanmagan", "amber")}${r.is_active ? "" : badge("Nofaol", "red")}</div>`],
+      ],
+      actions: (r) => [
+        { label: "✎ Tahrirlash", silent: true, run: () => openClinicForm(r) },
+        { label: r.is_verified ? "Tasdiqni bekor qilish" : "✓ Tasdiqlash (mijozlarga ko'rinadi)", danger: r.is_verified, run: () => post(`/clinics/${r.id}/toggle-verify/`), ok: "Saqlandi" },
+        { label: r.is_active ? "⏸ Nofaol qilish" : "▶ Faollashtirish", danger: r.is_active, run: () => patchJson(`/clinics/${r.id}/`, { is_active: !r.is_active }), ok: "Saqlandi" },
+        { label: "🗑 O'chirish", danger: true, confirm: `"${r.name}" klinikasi o'chirilsinmi? Unga biriktirilgan vetlar klinikasiz qoladi.`, run: () => del(`/clinics/${r.id}/`), ok: "Klinika o'chirildi" },
       ],
     },
     users: {
@@ -214,7 +237,8 @@
 
   // ---------- Tarmoq ----------
   async function request(path, options = {}) {
-    const headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
+    const isForm = options.body instanceof FormData;
+    const headers = Object.assign(isForm ? {} : { "Content-Type": "application/json" }, options.headers || {});
     const token = localStorage.getItem(TOKEN_KEY);
     if (token) headers["Authorization"] = "Bearer " + token;
     const res = await fetch(path.startsWith("http") ? path : API + path, Object.assign({}, options, { headers }));
@@ -223,13 +247,19 @@
     }
     if (!res.ok) {
       let msg = "Xatolik (" + res.status + ")";
-      try { const d = await res.json(); msg = d.detail || msg; } catch (e) { /* jim */ }
+      try {
+        const d = await res.json();
+        // DRF maydon xatolari: {"name": ["..."]} — birinchisini ko'rsatamiz.
+        const first = d.detail || Object.values(d).flat()[0];
+        msg = typeof first === "string" ? first : msg;
+      } catch (e) { /* jim */ }
       throw new Error(msg);
     }
     return res.status === 204 ? null : res.json();
   }
   const post = (p, body) => request(p, body ? { method: "POST", body: JSON.stringify(body) } : { method: "POST" });
   const del = (p) => request(p, { method: "DELETE" });
+  const patchJson = (p, body) => request(p, { method: "PATCH", body: JSON.stringify(body) });
 
   function toast(msg, isError) {
     const el = $("toast");
@@ -331,8 +361,9 @@
     const sec = SECTIONS[state.section];
     $("page-title").textContent = sec.title;
     $("search-input").parentElement.style.visibility = sec.searchable ? "visible" : "hidden";
-    if (state.section === "dashboard") { $("tabs").innerHTML = ""; return loadDashboard(); }
+    if (state.section === "dashboard") { $("tabs").innerHTML = ""; renderPageActions(sec); return loadDashboard(); }
     renderTabs(sec);
+    renderPageActions(sec);
     $("view").innerHTML = '<div class="loading">Yuklanmoqda...</div>';
     const params = new URLSearchParams();
     if (sec.tabParam && state.tab !== "") params.set(sec.tabParam, state.tab);
@@ -412,6 +443,7 @@
         e.stopPropagation();
         closeMenus();
         if (a.confirm && !window.confirm(a.confirm)) return;
+        if (a.silent) { a.run(); return; }
         try {
           await a.run();
           toast(a.ok || "Bajarildi");
@@ -458,6 +490,172 @@
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => { state.q = e.target.value.trim(); state.page = 1; load(); }, 350);
   });
+
+  // ---------- Sahifa tugmalari va modal ----------
+  function renderPageActions(sec) {
+    const box = $("page-actions");
+    box.innerHTML = sec.createLabel ? `<button class="btn-primary btn-sm" id="create-btn">${esc(sec.createLabel)}</button>` : "";
+    if (sec.createLabel) $("create-btn").onclick = sec.create;
+  }
+
+  function openModal(html) {
+    $("modal-card").innerHTML = html;
+    $("modal").hidden = false;
+    $("modal-card").querySelectorAll("[data-close]").forEach((b) => { b.onclick = closeModal; });
+  }
+  function closeModal() {
+    $("modal").hidden = true;
+    $("modal-card").innerHTML = "";
+    clinicMap = null;
+  }
+  $("modal").addEventListener("click", (e) => { if (e.target === $("modal")) closeModal(); });
+
+  // ---------- Klinika formasi ----------
+  let specsCache = null;
+  let clinicMap = null;
+  const REGIONS = () => window.UZ_REGIONS || [];
+
+  async function loadSpecs() {
+    if (!specsCache) specsCache = await request(location.origin + "/api/v1/specializations/");
+    return specsCache.results || specsCache;
+  }
+
+  function regionOptions(selected) {
+    return `<option value="">— Viloyatni tanlang —</option>` + REGIONS().map((r) =>
+      `<option value="${esc(r.name)}"${r.name === selected ? " selected" : ""}>${esc(r.name)}</option>`).join("");
+  }
+  function districtOptions(regionName, selected) {
+    const region = REGIONS().find((r) => r.name === regionName);
+    return `<option value="">— Tumanni tanlang —</option>` + (region ? region.districts : []).map((d) =>
+      `<option value="${esc(d)}"${d === selected ? " selected" : ""}>${esc(d)}</option>`).join("");
+  }
+
+  async function openClinicForm(c) {
+    const specs = await loadSpecs().catch(() => []);
+    const chosen = new Set(c ? c.specializations : []);
+    openModal(`
+      <div class="modal-head"><h3>${c ? "Klinikani tahrirlash" : "Yangi klinika"}</h3><button class="icon-btn" data-close>✕</button></div>
+      <form id="clinic-form" class="form-grid">
+        <label class="span2">Nomi *<input name="name" required value="${esc(c ? c.name : "")}" /></label>
+        <label>Telefon<input name="phone" placeholder="+998901234567" value="${esc(c ? c.phone : "")}" /></label>
+        <label>Ish vaqti<input name="working_hours" placeholder="Har kuni 09:00–20:00" value="${esc(c ? c.working_hours : "")}" /></label>
+        <label>Viloyat<select name="city" id="cf-city">${regionOptions(c ? c.city : "")}</select></label>
+        <label>Tuman<select name="district" id="cf-district">${districtOptions(c ? c.city : "", c ? c.district : "")}</select></label>
+        <label class="span2">Manzil<input name="address" placeholder="Ko'cha, uy, mo'ljal" value="${esc(c ? c.address : "")}" /></label>
+        <div class="span2">
+          <div class="field-label">Xaritadagi joyi <span class="muted" id="cf-coords">${c && c.lat != null ? `${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}` : "belgilanmagan — xaritani bosing"}</span></div>
+          <div id="cf-map" class="cf-map"></div>
+        </div>
+        <label class="check span2"><input type="checkbox" name="is_24h" ${c && c.is_24h ? "checked" : ""} /> 24/7 (kechayu kunduz) ishlaydi</label>
+        <div class="span2">
+          <div class="field-label">Mutaxassisliklar</div>
+          <div class="chip-row">${specs.map((sp) => `<label class="chip-check"><input type="checkbox" name="spec" value="${sp.id}" ${chosen.has(sp.name) ? "checked" : ""} /> ${esc((sp.icon ? sp.icon + " " : "") + sp.name)}</label>`).join("")}</div>
+        </div>
+        <label class="span2">Tavsif<textarea name="description" rows="3">${esc(c ? c.description : "")}</textarea></label>
+        <label class="span2">Xizmatlar <span class="muted">(har qatorda bittadan, masalan: Rentgen — 80 000 so'm)</span><textarea name="services" rows="4">${esc(c ? c.services : "")}</textarea></label>
+        <label>Logotip / rasm<input type="file" name="logo" accept="image/png,image/jpeg,image/webp" /></label>
+        <label>Litsenziya (PDF/rasm)<input type="file" name="license_document" accept="application/pdf,image/png,image/jpeg" /></label>
+        <label class="check span2"><input type="checkbox" name="is_active" ${!c || c.is_active ? "checked" : ""} /> Faol (o'chirilsa mijozlarga ko'rinmaydi)</label>
+        ${c ? "" : `<p class="muted span2" style="margin:0">Saqlangach klinika "Tasdiqlanmagan" bo'ladi — mijozlarga ko'rinishi uchun menyudan "✓ Tasdiqlash"ni bosing.</p>`}
+        <div class="form-actions span2">
+          <button type="button" class="btn-ghost" data-close>Bekor qilish</button>
+          <button type="submit" class="btn-primary btn-sm" id="cf-save">Saqlash</button>
+        </div>
+      </form>`);
+
+    const form = $("clinic-form");
+    let point = c && c.lat != null ? [c.lat, c.lng] : null;
+    $("cf-city").onchange = (e) => {
+      $("cf-district").innerHTML = districtOptions(e.target.value, "");
+      const region = REGIONS().find((r) => r.name === e.target.value);
+      if (!point && region && region.center && clinicMap) clinicMap.setCenter(region.center, 11);
+    };
+    initClinicMap(point, (p) => {
+      point = p;
+      $("cf-coords").textContent = `${p[0].toFixed(5)}, ${p[1].toFixed(5)}`;
+    }, c ? c.city : "");
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = $("cf-save");
+      btn.disabled = true;
+      const fd = new FormData(form);
+      const body = {
+        name: fd.get("name"), phone: fd.get("phone"), working_hours: fd.get("working_hours"),
+        city: fd.get("city"), district: fd.get("district"), address: fd.get("address"),
+        description: fd.get("description"), services: fd.get("services"),
+        is_24h: fd.get("is_24h") === "on", is_active: fd.get("is_active") === "on",
+        specialization_ids: fd.getAll("spec").map(Number),
+        lat: point ? Number(point[0].toFixed(6)) : null, lng: point ? Number(point[1].toFixed(6)) : null,
+      };
+      try {
+        const saved = c ? await patchJson(`/clinics/${c.id}/`, body) : await request("/clinics/", { method: "POST", body: JSON.stringify(body) });
+        const files = new FormData();
+        ["logo", "license_document"].forEach((k) => { const f = fd.get(k); if (f && f.size) files.append(k, f); });
+        if ([...files.keys()].length) await request(`/clinics/${saved.id}/`, { method: "PATCH", body: files });
+        closeModal();
+        toast(c ? "Klinika saqlandi" : "Klinika qo'shildi");
+        load();
+      } catch (err) {
+        toast(err.message, true);
+      } finally {
+        btn.disabled = false;
+      }
+    };
+  }
+
+  function initClinicMap(point, onPick, cityName) {
+    const el = $("cf-map");
+    if (typeof ymaps === "undefined") { el.innerHTML = '<div class="muted" style="padding:12px">Xarita yuklanmadi — internetni tekshiring.</div>'; return; }
+    ymaps.ready(() => {
+      if (!document.getElementById("cf-map")) return;
+      const region = REGIONS().find((r) => r.name === cityName);
+      const center = point || (region && region.center) || [41.311, 69.24];
+      clinicMap = new ymaps.Map("cf-map", { center, zoom: point ? 16 : 11, controls: ["zoomControl", "searchControl"] });
+      const mark = new ymaps.Placemark(center, {}, { draggable: true, preset: "islands#redMedicalIcon", visible: !!point });
+      clinicMap.geoObjects.add(mark);
+      const place = (coords) => { mark.geometry.setCoordinates(coords); mark.options.set("visible", true); onPick(coords); };
+      clinicMap.events.add("click", (e) => place(e.get("coords")));
+      mark.events.add("dragend", () => place(mark.geometry.getCoordinates()));
+    });
+  }
+
+  // ---------- Vetni klinikaga biriktirish ----------
+  async function openAttachClinic(vet) {
+    let clinics = [];
+    try {
+      let url = "/clinics/";
+      while (url) {
+        const data = await request(url);
+        clinics = clinics.concat(data.results || data);
+        url = data.next ? data.next.replace(/^.*\/api\/v1\/admin/, "") : null;
+      }
+    } catch (e) { return toast(e.message, true); }
+    const current = vet.clinic ? vet.clinic.id : "";
+    openModal(`
+      <div class="modal-head"><h3>🏥 Klinikaga biriktirish</h3><button class="icon-btn" data-close>✕</button></div>
+      <p class="muted" style="margin:0 0 12px">${esc(vet.full_name || vet.username)}</p>
+      <label class="form-grid-label">Klinika
+        <select id="ac-clinic">
+          <option value="">— Klinikasiz (yakka vet) —</option>
+          ${clinics.map((c) => `<option value="${c.id}"${c.id === current ? " selected" : ""}>${esc(c.name)}${c.city ? " · " + esc(c.city) : ""}${c.is_verified ? "" : " (tasdiqlanmagan)"}</option>`).join("")}
+        </select>
+      </label>
+      ${clinics.length ? "" : `<p class="muted">Hali klinika yo'q — avval "Klinikalar" bo'limida qo'shing.</p>`}
+      <div class="form-actions">
+        <button type="button" class="btn-ghost" data-close>Bekor qilish</button>
+        <button type="button" class="btn-primary btn-sm" id="ac-save">Saqlash</button>
+      </div>`);
+    $("ac-save").onclick = async () => {
+      try {
+        const val = $("ac-clinic").value;
+        await post(`/vets/${vet.id}/set-clinic/`, { clinic: val ? Number(val) : null });
+        closeModal();
+        toast("Saqlandi");
+        load();
+      } catch (e) { toast(e.message, true); }
+    };
+  }
 
   // ---------- Ishga tushirish ----------
   if (localStorage.getItem(TOKEN_KEY)) showShell(); else showLogin();

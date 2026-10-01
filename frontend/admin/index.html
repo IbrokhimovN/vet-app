@@ -4,7 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Vet-App Admin</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260929a" />
+  <script src="https://api-maps.yandex.ru/2.1/?apikey=6f3fca54-4fcb-4f0c-8e44-e4f4d835fd88&lang=uz_UZ"></script>
+  <script src="regions.js?v=20260929a"></script>
 </head>
 <body>
 
@@ -54,7 +56,7 @@
       <main class="content">
         <div class="page-card">
           <div class="page-head">
-            <h2 id="page-title">—</h2>
+            <div class="page-title-row"><h2 id="page-title">—</h2><div id="page-actions"></div></div>
             <div id="tabs" class="tabs"></div>
           </div>
           <div id="view"></div>
@@ -63,7 +65,8 @@
     </div>
   </div>
 
+  <div id="modal" class="modal" hidden><div id="modal-card" class="modal-card"></div></div>
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260929a"></script>
 </body>
 </html>

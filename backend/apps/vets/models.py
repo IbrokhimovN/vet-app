@@ -39,6 +39,57 @@ class Specialization(models.Model):
         return self.name
 
 
+class Clinic(models.Model):
+    """
+    Veterinariya klinikasi — mijoz o'zi boradigan doimiy manzil.
+
+    1-bosqichda klinikalarni faqat admin qo'shadi va tasdiqlaydi; mijozga faqat
+    tasdiqlangan va faol klinikalar ko'rinadi. Ilovada birorta vet bo'lmasa ham
+    klinika sahifasi (manzil, telefon, ish vaqti) foydali ma'lumot sifatida chiqadi.
+    """
+
+    name = models.CharField("Nomi", max_length=150)
+    logo = models.ImageField("Logotip / rasm", upload_to="clinics/", null=True, blank=True)
+    phone = models.CharField("Telefon", max_length=32, blank=True)
+    description = models.TextField("Tavsif", blank=True)
+    # Har bir qator — bitta xizmat (masalan: "Rentgen — 80 000 so'm").
+    services = models.TextField("Xizmatlar", blank=True)
+    working_hours = models.CharField("Ish vaqti", max_length=120, blank=True)
+    is_24h = models.BooleanField("24/7 ishlaydi", default=False)
+
+    city = models.CharField("Viloyat", max_length=80, blank=True)
+    district = models.CharField("Tuman", max_length=80, blank=True)
+    address = models.CharField("Manzil", max_length=255, blank=True)
+    lat = models.FloatField("Kenglik", null=True, blank=True)
+    lng = models.FloatField("Uzunlik", null=True, blank=True)
+
+    specializations = models.ManyToManyField(Specialization, related_name="clinics", blank=True)
+    license_document = models.FileField(
+        "Litsenziya", upload_to="clinic_licenses/", null=True, blank=True,
+        validators=[
+            FileExtensionValidator(allowed_extensions=ALLOWED_DOCUMENT_EXTENSIONS),
+            validate_document_size,
+        ],
+    )
+    is_verified = models.BooleanField("Tasdiqlangan", default=False)
+    is_active = models.BooleanField("Faol", default=True)
+
+    created_at = models.DateTimeField("Yaratilgan", auto_now_add=True)
+    updated_at = models.DateTimeField("Yangilangan", auto_now=True)
+
+    class Meta:
+        verbose_name = "Klinika"
+        verbose_name_plural = "Klinikalar"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def services_list(self):
+        return [line.strip() for line in self.services.splitlines() if line.strip()]
+
+
 class VetProfile(models.Model):
     """Veterinarning profili. Vet Mini App orqali to'ldiriladi."""
 
@@ -50,6 +101,11 @@ class VetProfile(models.Model):
     bio = models.TextField("Bio", blank=True)
     experience_years = models.PositiveSmallIntegerField("Tajriba (yil)", default=0)
     clinic_name = models.CharField("Klinika nomi", max_length=150, blank=True)
+    # Admin biriktiradi; bog'lanmagan (yakka) vetlarda bo'sh qoladi.
+    clinic = models.ForeignKey(
+        "Clinic", on_delete=models.SET_NULL, null=True, blank=True, related_name="vets",
+        verbose_name="Klinika",
+    )
 
     # Joylashuv (oddiy geo — Haversine, ARCHITECTURE.md 8-bo'lim)
     lat = models.FloatField("Kenglik", null=True, blank=True)

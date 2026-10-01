@@ -390,3 +390,82 @@ class ExpireUnansweredCallsTests(Base):
         expire_unanswered_calls()
         call.refresh_from_db()
         self.assertEqual(call.status, CallStatus.ACCEPTED)
+
+
+class ClientLocationPrivacyTests(Base):
+    """Mijozning aniq joyi vetga faqat bog'langach ko'rinadi, undan oldin — masofa."""
+
+    def setUp(self):
+        super().setUp()
+        self.vet.lat, self.vet.lng = 41.30, 69.24
+        self.vet.save()
+
+    def test_call_location_hidden_until_accepted(self):
+        self.client.force_authenticate(self.client_user)
+        call_id = self.client.post(
+            reverse("v1:call-list"),
+            {"vet": self.vet.id, "type": "home", "address": "Uy 5", "lat": 41.31, "lng": 69.25},
+            format="json",
+        ).json()["id"]
+
+        mine = self.client.get(reverse("v1:call-list"), {"role": "client"}).json()["results"][0]
+        self.assertEqual((mine["lat"], mine["address"]), (41.31, "Uy 5"))
+
+        self.client.force_authenticate(self.vet_user)
+        pending = self.client.get(reverse("v1:call-list"), {"role": "vet"}).json()["results"][0]
+        self.assertIsNone(pending["lat"])
+        self.assertEqual(pending["address"], "")
+        self.assertTrue(pending["location_hidden"])
+        self.assertIsNotNone(pending["distance_km"])
+
+        accepted = self.client.post(reverse("v1:call-action", args=[call_id, "accept"])).json()
+        self.assertEqual((accepted["lat"], accepted["lng"], accepted["address"]), (41.31, 69.25, "Uy 5"))
+        self.assertFalse(accepted["location_hidden"])
+
+    def test_tender_location_only_for_winner(self):
+        other_user = User.objects.create(username="vet2", telegram_id=3, role=Role.VET)
+        other = VetProfile.objects.create(user=other_user, city="Toshkent", lat=41.0, lng=69.0)
+        other.specializations.add(self.spec)
+
+        self.client.force_authenticate(self.client_user)
+        sr_id = self.client.post(
+            reverse("v1:sr-list"),
+            {"specialization": self.spec.id, "type": "home", "city": "Toshkent", "lat": 41.31, "lng": 69.25},
+            format="json",
+        ).json()["id"]
+
+        self.client.force_authenticate(self.vet_user)
+        feed = self.client.get(reverse("v1:sr-feed")).json()
+        item = next(i for i in feed.get("results", feed) if i["id"] == sr_id)
+        self.assertIsNone(item["lat"])
+        self.assertTrue(item["location_hidden"])
+        self.assertIsNotNone(item["distance_km"])
+
+        offer_id = self.client.post(reverse("v1:sr-offer-create", args=[sr_id]), {"price": 100000}, format="json").json()["id"]
+        self.client.force_authenticate(self.client_user)
+        self.client.post(reverse("v1:offer-accept", args=[offer_id]))
+
+        self.client.force_authenticate(self.vet_user)
+        won = self.client.get(reverse("v1:sr-won")).json()
+        won_item = next(i for i in won if i["id"] == sr_id)
+        self.assertEqual((won_item["lat"], won_item["lng"]), (41.31, 69.25))
+
+        # Yutqazgan vet aniq joyni ko'rmaydi
+        self.client.force_authenticate(other_user)
+        resp = self.client.get(reverse("v1:sr-feed")).json()
+        self.assertFalse(any(i["id"] == sr_id and i["lat"] is not None for i in resp.get("results", resp)))
+
+
+class RegionMatchingTests(Base):
+    def test_region_q_matches_full_and_legacy_names(self):
+        from apps.vets.utils import region_q
+
+        self.vet.city = "Samarqand"
+        self.vet.save()
+        full_user = User.objects.create(username="v3", telegram_id=4, role=Role.VET)
+        full = VetProfile.objects.create(user=full_user, city="Samarqand viloyati")
+        other_user = User.objects.create(username="v4", telegram_id=5, role=Role.VET)
+        VetProfile.objects.create(user=other_user, city="Buxoro viloyati")
+
+        ids = set(VetProfile.objects.filter(region_q("city", "Samarqand viloyati")).values_list("id", flat=True))
+        self.assertEqual(ids, {self.vet.id, full.id})

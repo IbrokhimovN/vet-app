@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Service, Specialization, VetProfile
+from .models import Clinic, Service, Specialization, VetProfile
 
 
 class ServiceInline(admin.TabularInline):
@@ -27,3 +27,10 @@ class VetProfileAdmin(admin.ModelAdmin):
     inlines = [ServiceInline]
     # rating/monetizatsiya maydonlari tizim tomonidan boshqariladi
     readonly_fields = ("rating_avg", "rating_count", "created_at", "updated_at")
+
+
+@admin.register(Clinic)
+class ClinicAdmin(admin.ModelAdmin):
+    list_display = ("name", "city", "phone", "is_verified", "is_active")
+    list_filter = ("is_verified", "is_active", "city")
+    search_fields = ("name", "address", "phone")

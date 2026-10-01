@@ -50,6 +50,11 @@
     return res.status === 204 ? null : res.json();
   }
 
+  // Serverdan kelgan (foydalanuvchi yozgan) matnni innerHTML'ga qo'yishdan oldin albatta shundan o'tkazish kerak.
+  function esc(value) {
+    return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
   function popup(msg) {
     tg && tg.showPopup ? tg.showPopup({ message: msg }) : alert(msg);
   }
@@ -204,6 +209,36 @@
     return d.getDate() + " " + MONTHS[d.getMonth()] + ", " + d.getHours().toString().padStart(2, "0") + ":" + d.getMinutes().toString().padStart(2, "0");
   }
 
+  // Mijoz joylashuvi: bog'lanishgacha backend faqat masofani beradi, keyin aniq nuqtani.
+  function locationHtml(r) {
+    const dist = r.distance_km != null ? I18N.t("loc_distance", { km: r.distance_km }) : "";
+    if (r.lat != null && r.lng != null) {
+      return `${dist ? `<div class="addr">🚗 ${dist}</div>` : ""}
+        <button type="button" class="map-btn map-link" data-lat="${r.lat}" data-lng="${r.lng}">📍 ${I18N.t("loc_open_map")}</button>`;
+    }
+    // GPS nuqtasi yo'q, lekin mijoz manzilni yozgan — Yandex'da shu matn bo'yicha qidiramiz.
+    if (r.address && !r.location_hidden) {
+      return `<button type="button" class="map-btn map-link" data-q="${esc(r.address)}">📍 ${I18N.t("loc_open_map")}</button>`;
+    }
+    if (!dist && !r.location_hidden) return "";
+    const parts = [dist, r.location_hidden ? I18N.t("loc_hidden_hint") : ""].filter(Boolean);
+    return `<div class="addr">📍 ${parts.join(" · ")}</div>`;
+  }
+
+
+  function bindMapLinks(root) {
+    root.querySelectorAll(".map-link").forEach((a) => {
+      a.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const url = a.dataset.q
+          ? `https://yandex.uz/maps/?text=${encodeURIComponent(a.dataset.q)}`
+          : `https://yandex.uz/maps/?pt=${a.dataset.lng},${a.dataset.lat}&z=17&l=map`;
+        if (tg && tg.openLink) tg.openLink(url); else window.open(url, "_blank");
+      };
+    });
+  }
+
   // --- Call card (used on Home preview + Calls tab) ---
   function callCardEl(r, withActions) {
     const li = document.createElement("li");
@@ -218,21 +253,23 @@
       <div class="req-top">
         <div class="req-icon">${TYPE_ICON[r.type] || "📋"}</div>
         <div class="req-info">
-          <div class="t">${typeLabel} · ${r.pet_info?.name || "Hayvon"}</div>
-          <div class="s">${r.note || "Izohsiz"}</div>
-          ${r.address ? `<div class="addr">📍 ${r.address}</div>` : ""}
+          <div class="t">${typeLabel} · ${esc(r.pet_info?.name || "Hayvon")}</div>
+          <div class="s">${esc(r.note || "Izohsiz")}</div>
+          ${r.address ? `<div class="addr">🏠 ${esc(r.address)}</div>` : ""}
+          ${locationHtml(r)}
           ${r.scheduled_at ? `<div class="addr">🕒 ${fmtScheduled(r.scheduled_at)}</div>` : ""}
-          ${r.client_info?.phone ? `<div class="addr"><a class="tel-link" href="tel:${r.client_info.phone}">📞 ${r.client_info.phone}</a></div>` : ""}
+          ${r.client_info?.phone ? `<div class="addr"><a class="tel-link" href="tel:${esc(r.client_info.phone)}">📞 ${esc(r.client_info.phone)}</a></div>` : ""}
         </div>
-        <span class="st st-${r.status}">${statusLabel(r.status)}</span>
+        <span class="st st-${esc(r.status)}">${statusLabel(r.status)}</span>
       </div>
       ${acts ? `<div class="req-actions">${acts}</div>` : ""}
       ${withActions && ["accepted", "on_way", "completed"].includes(r.status) ? `
       <div class="price-row" style="margin-top:8px;display:flex;gap:8px;align-items:center">
-        <input type="number" min="0" class="price-input" placeholder="${I18N.t("price_agreed_ph")}" value="${r.price_agreed || ""}" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:13px" />
+        <input type="number" min="0" class="price-input" placeholder="${I18N.t("price_agreed_ph")}" value="${esc(r.price_agreed || "")}" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:13px" />
         <button class="btn-secondary price-save-btn" style="width:auto;flex:0 0 auto;margin-top:0;padding:8px 14px">${I18N.t("save")}</button>
       </div>` : ""}
       ${withActions && ["completed", "rejected", "cancelled"].includes(r.status) ? `<button class="btn-secondary report-btn" style="margin-top:8px;width:100%;color:var(--red)">${I18N.t("report")}</button>` : ""}`;
+    bindMapLinks(li);
     if (withActions) {
       const priceBtn = li.querySelector(".price-save-btn");
       if (priceBtn) priceBtn.onclick = () => withBusy(priceBtn, async () => {
@@ -341,17 +378,19 @@
       const canReport = ["completed", "cancelled"].includes(sr.status);
       li.innerHTML = `
         <div class="req-top">
-          <div class="req-icon">${sr.specialization_info?.icon || "🐾"}</div>
+          <div class="req-icon">${esc(sr.specialization_info?.icon || "🐾")}</div>
           <div class="req-info">
-            <div class="t">${sr.specialization_info?.name || ""} · ${sr.city || ""}</div>
-            <div class="s">${sr.note || "Izohsiz"}</div>
+            <div class="t">${esc(sr.specialization_info?.name || "")} · ${esc([sr.city, sr.district].filter(Boolean).join(", "))}</div>
+            <div class="s">${esc(sr.note || "Izohsiz")}</div>
             <div class="addr">💰 ${price}</div>
-            ${sr.client_info?.phone ? `<div class="addr"><a class="tel-link" href="tel:${sr.client_info.phone}">📞 ${sr.client_info.phone}</a></div>` : ""}
+            ${locationHtml(sr)}
+            ${sr.client_info?.phone ? `<div class="addr"><a class="tel-link" href="tel:${esc(sr.client_info.phone)}">📞 ${esc(sr.client_info.phone)}</a></div>` : ""}
           </div>
           <span class="st st-${sr.status === "completed" ? "completed" : "accepted"}">${sr.status === "completed" ? I18N.t("st_completed") : I18N.t("working")}</span>
         </div>
         ${canComplete ? `<button class="btn-secondary complete-btn" style="margin-top:10px;width:100%">${I18N.t("complete")}</button>` : ""}
         ${canReport ? `<button class="btn-secondary report-btn" style="margin-top:8px;width:100%;color:var(--red)">${I18N.t("report")}</button>` : ""}`;
+      bindMapLinks(li);
       const completeBtn = li.querySelector(".complete-btn");
       if (completeBtn) completeBtn.onclick = () => confirmAction("Bu ishni yakunlaysizmi?", () => withBusy(completeBtn, async () => {
         try {
@@ -380,11 +419,12 @@
       const alreadySent = r.my_offer && r.my_offer.status === "sent";
       li.innerHTML = `
         <div class="req-top">
-          <div class="req-icon">${r.specialization_info?.icon || "🐾"}</div>
+          <div class="req-icon">${esc(r.specialization_info?.icon || "🐾")}</div>
           <div class="req-info">
-            <div class="t">${typeLabel} ${r.specialization_info?.name || ""} · ${r.city || ""}</div>
-            <div class="s">${r.note || "Izohsiz"}</div>
+            <div class="t">${typeLabel} ${esc(r.specialization_info?.name || "")} · ${esc([r.city, r.district].filter(Boolean).join(", "))}</div>
+            <div class="s">${esc(r.note || "Izohsiz")}</div>
             ${r.budget_hint ? `<div class="addr">💰 ~${Number(r.budget_hint).toLocaleString()} so'm</div>` : ""}
+            ${locationHtml(r)}
           </div>
         </div>
         ${alreadySent
@@ -439,7 +479,7 @@
     (services || []).forEach((svc) => {
       const row = document.createElement("div");
       row.className = "svc-row";
-      row.innerHTML = `<span>${svc.title} — ${Number(svc.price).toLocaleString()} so'm</span><button class="del">🗑</button>`;
+      row.innerHTML = `<span>${esc(svc.title)} — ${Number(svc.price).toLocaleString()} so'm</span><button class="del">🗑</button>`;
       const delBtn = row.querySelector(".del");
       delBtn.onclick = () => confirmAction(`"${svc.title}" xizmatini o'chirasizmi?`, () => withBusy(delBtn, async () => {
         try {
@@ -470,7 +510,7 @@
     const name = [me.first_name, me.last_name].filter(Boolean).join(" ") || me.username || "Veterinar";
     const avatarEl = document.getElementById("profile-avatar");
     if (me.photo) {
-      avatarEl.innerHTML = `<img src="${me.photo}" alt="" />`;
+      avatarEl.innerHTML = `<img src="${esc(me.photo)}" alt="" />`;
     } else {
       avatarEl.textContent = name.charAt(0).toUpperCase();
     }
@@ -523,18 +563,55 @@
   // --- Birinchi kirishda ism/telefon so'rash ---
   // Telegram profilida ism odatda bor, lekin telefon hech qachon berilmaydi —
   // shuning uchun aynan telefon yo'qligiga qarab so'raymiz.
-  // Viloyat ham shart: mijozlar va ochiq so'rovlar viloyat bo'yicha filtrlanadi,
-  // viloyati yo'q vet hech kimga ko'rinmaydi — shuning uchun uni o'tkazib yuborib bo'lmaydi.
+  // Viloyat va joylashuv ham shart: mijozlar va ochiq so'rovlar viloyat bo'yicha
+  // filtrlanadi, xarita esa koordinata bo'yicha — ikkisidan biri bo'lmasa vet
+  // mijozlarga ko'rinmaydi. Shuning uchun bu holatda oynani o'tkazib bo'lmaydi.
+  // Qo'lda yozilgan eski viloyat nomlari ("Samarqand") ham ro'yxatdan qayta tanlatiladi.
+  function isKnownRegion(name) {
+    return (window.UZ_REGIONS || []).some((r) => r.name === name);
+  }
+
+  function onboardingNeeds() {
+    return {
+      region: !profile || !isKnownRegion(profile.city),
+      location: !profile || profile.lat == null || profile.lng == null,
+    };
+  }
+
+  let onbGeo = null;
+
   function maybeShowIdentityOnboarding() {
-    const needsRegion = !profile || !profile.city;
-    if (me.phone && !needsRegion) return;
+    const needs = onboardingNeeds();
+    if (me.phone && !needs.region && !needs.location) return;
     const modal = document.getElementById("identity-modal");
     document.getElementById("onb-first").value = me.first_name || "";
     document.getElementById("onb-last").value = me.last_name || "";
     document.getElementById("onb-phone").value = me.phone || "";
     fillOnbRegionOptions();
-    document.getElementById("onb-skip").hidden = needsRegion;
+    if (profile && isKnownRegion(profile.city)) {
+      document.getElementById("onb-city").value = profile.city;
+      fillOnbDistrictOptions(profile.city);
+      const districtSel = document.getElementById("onb-district");
+      if ([...districtSel.options].some((o) => o.value === profile.district)) districtSel.value = profile.district;
+    }
+    onbGeo = null;
+    document.getElementById("onb-geo-info").textContent = needs.location ? I18N.t("onb_geo_hint") : "";
+    document.getElementById("onb-skip").hidden = needs.region || needs.location;
     modal.hidden = false;
+  }
+
+  function captureOnbGeo() {
+    const info = document.getElementById("onb-geo-info");
+    if (!navigator.geolocation) { info.textContent = I18N.t("onb_geo_failed"); return; }
+    info.textContent = I18N.t("onb_geo_wait");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        onbGeo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        info.textContent = I18N.t("onb_geo_ok");
+      },
+      () => { info.textContent = I18N.t("onb_geo_failed"); },
+      { timeout: 10000 },
+    );
   }
 
   function fillOnbRegionOptions() {
@@ -567,10 +644,10 @@
   }
 
   async function saveOnboarding() {
-    const needsRegion = !profile || !profile.city;
+    const needs = onboardingNeeds();
     const city = document.getElementById("onb-city").value;
     const district = document.getElementById("onb-district").value;
-    if (needsRegion && (!city || !district)) {
+    if ((needs.region || needs.location) && (!city || !district)) {
       popup(I18N.t("identity_region_required"));
       return false;
     }
@@ -581,11 +658,15 @@
       { requirePhone: true },
     );
     if (!ok) return false;
-    if (needsRegion) {
+    if (needs.region || needs.location || onbGeo) {
       const payload = { city, district };
-      // Aniq joy hali belgilanmagan bo'lsa viloyat markazini qo'yamiz — vet xaritada darhol ko'rinadi.
+      // GPS berilgan bo'lsa aniq nuqta, aks holda (joy umuman yo'q bo'lsa) viloyat markazi —
+      // vet xaritada darhol ko'rinadi, aniq joyni keyin Profildan tuzatishi mumkin.
       const region = (window.UZ_REGIONS || []).find((r) => r.name === city);
-      if (profile.lat == null && region && region.center) {
+      if (onbGeo) {
+        payload.lat = onbGeo.lat;
+        payload.lng = onbGeo.lng;
+      } else if (needs.location && region && region.center) {
         payload.lat = region.center[0];
         payload.lng = region.center[1];
       }
@@ -950,8 +1031,8 @@
     li.innerHTML = `
       <div class="notif-icon">${NOTIF_ICON[n.kind] || "🔔"}</div>
       <div class="notif-body">
-        <div class="t">${n.title || n.kind_display}</div>
-        ${n.body ? `<div class="s">${n.body}</div>` : ""}
+        <div class="t">${esc(n.title || n.kind_display)}</div>
+        ${n.body ? `<div class="s">${esc(n.body)}</div>` : ""}
         <div class="time">${timeAgo(n.created_at)}</div>
       </div>`;
     li.onclick = () => {
@@ -1089,6 +1170,7 @@
       document.getElementById("privacy-close").onclick = () => { document.getElementById("privacy-modal").hidden = true; };
       const onbSaveBtn = document.getElementById("onb-save");
       document.getElementById("onb-city").onchange = (e) => fillOnbDistrictOptions(e.target.value);
+      document.getElementById("onb-geo-btn").onclick = captureOnbGeo;
       onbSaveBtn.onclick = () => withBusy(onbSaveBtn, async () => {
         const ok = await saveOnboarding();
         if (ok) {

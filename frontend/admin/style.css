@@ -195,3 +195,28 @@ tr.row:hover td { background: #fffaf6; }
   .page-card { padding: 16px; }
   .me #me-name { display: none; }
 }
+
+/* ---------- Sahifa tugmalari, modal va formalar ---------- */
+.page-title-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.btn-sm { width: auto; padding: 9px 16px; font-size: 13.5px; margin: 0; }
+.btn-ghost { border: 1px solid var(--border); background: var(--card); padding: 9px 16px; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; }
+.modal { position: fixed; inset: 0; z-index: 100; background: rgba(20, 15, 10, 0.45); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; }
+.modal[hidden] { display: none; }
+.modal-card { background: var(--card); border-radius: var(--radius-md); padding: 20px 22px; width: 100%; max-width: 720px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.modal-head h3 { margin: 0; font-size: 18px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+.form-grid .span2 { grid-column: 1 / -1; }
+.form-grid label, .form-grid-label { display: block; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.form-grid input:not([type=checkbox]), .form-grid select, .form-grid textarea, .form-grid-label select {
+  display: block; width: 100%; margin-top: 6px; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font: inherit; font-size: 14px; font-weight: 400;
+}
+.form-grid textarea { resize: vertical; }
+.form-grid label.check { display: flex; align-items: center; gap: 8px; color: var(--text); font-weight: 600; }
+.field-label { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.cf-map { height: 280px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip-check { display: inline-flex !important; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 20px; color: var(--text) !important; font-weight: 600 !important; cursor: pointer; }
+.form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+@media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }

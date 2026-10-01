@@ -3,6 +3,9 @@ from django.urls import path
 
 from .views import (
     AdminCallListView,
+    AdminClinicDetailView,
+    AdminClinicListCreateView,
+    AdminClinicToggleVerifyView,
     AdminLoginView,
     AdminNotificationListView,
     AdminNotificationRetryView,
@@ -15,6 +18,7 @@ from .views import (
     AdminUserListView,
     AdminUserToggleActiveView,
     AdminVetListView,
+    AdminVetSetClinicView,
     AdminVetToggleTopView,
     AdminVetToggleVerifyView,
     AdminVetWalletAdjustView,
@@ -31,6 +35,10 @@ urlpatterns = [
     path("vets/<int:pk>/toggle-verify/", AdminVetToggleVerifyView.as_view(), name="admin-vet-toggle"),
     path("vets/<int:pk>/toggle-top/", AdminVetToggleTopView.as_view(), name="admin-vet-toggle-top"),
     path("vets/<int:pk>/wallet-adjust/", AdminVetWalletAdjustView.as_view(), name="admin-vet-wallet-adjust"),
+    path("vets/<int:pk>/set-clinic/", AdminVetSetClinicView.as_view(), name="admin-vet-set-clinic"),
+    path("clinics/", AdminClinicListCreateView.as_view(), name="admin-clinics"),
+    path("clinics/<int:pk>/", AdminClinicDetailView.as_view(), name="admin-clinic-detail"),
+    path("clinics/<int:pk>/toggle-verify/", AdminClinicToggleVerifyView.as_view(), name="admin-clinic-toggle-verify"),
     path("calls/", AdminCallListView.as_view(), name="admin-calls"),
     path("tenders/", AdminServiceRequestListView.as_view(), name="admin-tenders"),
     path("reviews/", AdminReviewListView.as_view(), name="admin-reviews"),

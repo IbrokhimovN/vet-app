@@ -8,7 +8,7 @@ from apps.notifications.models import Notification
 from apps.pets.models import Pet
 from apps.requests.models import CallRequest, ServiceRequest
 from apps.reviews.models import Review
-from apps.vets.models import VetProfile
+from apps.vets.models import Clinic, Specialization, VetProfile
 
 
 def display_name(user):
@@ -38,11 +38,13 @@ class AdminVetSerializer(serializers.ModelSerializer):
     specializations = serializers.StringRelatedField(many=True, read_only=True)
     license_document = serializers.FileField(read_only=True)
 
+    clinic = serializers.SerializerMethodField()
+
     class Meta:
         model = VetProfile
         fields = (
             "id", "full_name", "username", "phone", "photo", "is_active",
-            "city", "clinic_name", "experience_years", "specializations",
+            "city", "clinic_name", "clinic", "experience_years", "specializations",
             "is_verified", "is_available", "license_document",
             "is_top", "top_until", "wallet_balance",
             "rating_avg", "rating_count", "created_at",
@@ -50,6 +52,38 @@ class AdminVetSerializer(serializers.ModelSerializer):
 
     def get_full_name(self, obj):
         return display_name(obj.user)
+
+    def get_clinic(self, obj):
+        return {"id": obj.clinic.id, "name": obj.clinic.name} if obj.clinic else None
+
+
+class AdminClinicSerializer(serializers.ModelSerializer):
+    """Admin: klinika yaratish/tahrirlash (logo va litsenziya — multipart)."""
+
+    specialization_ids = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Specialization.objects.all(), source="specializations",
+        write_only=True, required=False,
+    )
+    specializations = serializers.StringRelatedField(many=True, read_only=True)
+    vets = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Clinic
+        fields = (
+            "id", "name", "logo", "phone", "description", "services", "working_hours", "is_24h",
+            "city", "district", "address", "lat", "lng",
+            "specializations", "specialization_ids", "license_document",
+            "is_verified", "is_active", "vets", "created_at",
+        )
+        read_only_fields = ("is_verified", "created_at")
+
+    def get_vets(self, obj):
+        return [{"id": v.id, "name": display_name(v.user)} for v in obj.vets.all()]
+
+    def validate_name(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Klinika nomini kiriting.")
+        return value.strip()
 
 
 class AdminPetMiniSerializer(serializers.ModelSerializer):

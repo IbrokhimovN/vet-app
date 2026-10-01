@@ -198,6 +198,18 @@ class DeliveryTests(Base):
         self.assertEqual(kwargs["json"]["chat_id"], self.vet_user.telegram_id)
 
     @patch("apps.notifications.telegram.requests.post")
+    def test_user_text_is_html_escaped(self, mock_post):
+        mock_post.return_value.json.return_value = {"ok": True, "result": {"message_id": 8}}
+        n = Notification.objects.create(
+            recipient=self.vet_user, kind=Notification._meta.get_field("kind").choices[0][0],
+            title="Yangi <tender>", body="Mushuk <b>kasal</b> & och", bot="vet",
+        )
+        from .tasks import deliver_notification
+        deliver_notification.apply(args=[n.id])
+        text = mock_post.call_args.kwargs["json"]["text"]
+        self.assertEqual(text, "<b>Yangi &lt;tender&gt;</b>\nMushuk &lt;b&gt;kasal&lt;/b&gt; &amp; och")
+
+    @patch("apps.notifications.telegram.requests.post")
     def test_transient_error_is_retried_then_succeeds(self, mock_post):
         from unittest.mock import Mock
 

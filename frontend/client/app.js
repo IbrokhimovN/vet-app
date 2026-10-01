@@ -31,6 +31,7 @@
   let tenderType = "home";
   let tenderPetId = null;
   let vetsView = "list";
+  let listKind = "vets";
   let currentVetsList = [];
   let yandexMap = null;
   let yandexUserMarker = null;
@@ -57,6 +58,11 @@
     }
     if (!res.ok) throw new Error("API " + res.status + ": " + (await res.text()));
     return res.status === 204 ? null : res.json();
+  }
+
+  // Serverdan kelgan (foydalanuvchi yozgan) matnni innerHTML'ga qo'yishdan oldin albatta shundan o'tkazish kerak.
+  function esc(value) {
+    return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
   function popup(msg) {
@@ -188,7 +194,7 @@
     specs.forEach((s) => {
       const el = document.createElement("div");
       el.className = "spec-item";
-      el.innerHTML = `<div class="circle">${s.icon || "🐾"}</div><span class="label">${s.name}</span>`;
+      el.innerHTML = `<div class="circle">${esc(s.icon || "🐾")}</div><span class="label">${esc(s.name)}</span>`;
       el.onclick = () => {
         activeSpec = s.slug;
         syncSpecChips();
@@ -248,7 +254,7 @@
     // Hayvon o'chirilgan bo'lsa, unga eski tanlov ilashib qolmasligi kerak.
     if (tenderPetId && !myPets.some((p) => p.id === tenderPetId)) tenderPetId = null;
     box.innerHTML = myPets
-      .map((p) => `<span class="chip${p.id === tenderPetId ? " active" : ""}" data-pet-id="${p.id}">🐾 ${p.name}</span>`)
+      .map((p) => `<span class="chip${p.id === tenderPetId ? " active" : ""}" data-pet-id="${p.id}">🐾 ${esc(p.name)}</span>`)
       .join("");
     box.querySelectorAll(".chip").forEach((el) => {
       el.onclick = () => {
@@ -309,11 +315,9 @@
       district: document.getElementById("tender-district").value,
       note: document.getElementById("tender-note").value.trim(),
     };
-    // Aniq GPS bo'lmasa ham, tanlangan viloyat markazi koordinatasi yozib qo'yiladi —
-    // shunda so'rov xaritada va masofa bo'yicha saralashda ishlatilishi mumkin.
-    const region = (window.UZ_REGIONS || []).find((r) => r.name === cityName);
-    if (coords.lat != null) { payload.lat = coords.lat; payload.lng = coords.lng; }
-    else if (region && region.center) { payload.lat = region.center[0]; payload.lng = region.center[1]; }
+    // Viloyat markazi emas, mijozning haqiqiy joyi — vet masofani va (tayinlangach) aniq joyni ko'radi.
+    const loc = await ensureClientLocation();
+    if (loc) { payload.lat = loc.lat; payload.lng = loc.lng; }
     if (tenderPetId) payload.pet = tenderPetId;
     const budget = document.getElementById("tender-budget").value;
     if (budget) {
@@ -342,22 +346,22 @@
   function tenderCardEl(sr) {
     const li = document.createElement("li");
     li.className = "tender-card";
-    const specTxt = sr.specialization_info ? (sr.specialization_info.icon ? sr.specialization_info.icon + " " : "") + sr.specialization_info.name : "";
+    const specTxt = esc(sr.specialization_info ? (sr.specialization_info.icon ? sr.specialization_info.icon + " " : "") + sr.specialization_info.name : "");
     const canCancel = sr.status === "open" || sr.status === "assigned";
     const canReview = sr.status === "completed";
     const stCls = SR_STATUS_CLASS[sr.status] || "cancelled";
     const assignedTxt = sr.assigned_offer_info
-      ? `<div class="ts">🩺 ${sr.assigned_offer_info.vet_info?.full_name || "Veterinar"} — ${Number(sr.assigned_offer_info.price).toLocaleString()} so'm</div>
-         ${sr.assigned_offer_info.vet_info?.phone ? `<div class="ts"><a class="tel-link" href="tel:${sr.assigned_offer_info.vet_info.phone}">📞 ${sr.assigned_offer_info.vet_info.phone}</a></div>` : ""}`
+      ? `<div class="ts">🩺 ${esc(sr.assigned_offer_info.vet_info?.full_name || "Veterinar")} — ${Number(sr.assigned_offer_info.price).toLocaleString()} so'm</div>
+         ${sr.assigned_offer_info.vet_info?.phone ? `<div class="ts"><a class="tel-link" href="tel:${esc(sr.assigned_offer_info.vet_info.phone)}">📞 ${esc(sr.assigned_offer_info.vet_info.phone)}</a></div>` : ""}`
       : "";
     li.innerHTML = `
       <div class="tender-top">
         <div>
-          <div class="tt">${TYPE_ICON[sr.type] || ""} ${specTxt}${sr.city ? " · " + sr.city : ""}</div>
-          <div class="ts">${sr.note || "Izohsiz"}${sr.budget_hint ? " · 💰 ~" + Number(sr.budget_hint).toLocaleString() + " so'm" : ""}</div>
+          <div class="tt">${TYPE_ICON[sr.type] || ""} ${specTxt}${sr.city ? " · " + esc(sr.city) : ""}</div>
+          <div class="ts">${esc(sr.note || "Izohsiz")}${sr.budget_hint ? " · 💰 ~" + Number(sr.budget_hint).toLocaleString() + " so'm" : ""}</div>
           ${assignedTxt || `<div class="ts">${sr.offers_count} ta taklif</div>`}
         </div>
-        <span class="st st-${stCls}">${srStatusLabel(sr.status)}</span>
+        <span class="st st-${esc(stCls)}">${srStatusLabel(sr.status)}</span>
       </div>
       <div id="offers-box-${sr.id}"></div>
       <div style="display:flex;gap:8px;margin-top:10px">
@@ -396,8 +400,8 @@
         const canAccept = sr.status === "open" && o.status === "sent";
         row.innerHTML = `
           <div class="oi">
-            <div class="on">${o.vet_info?.full_name || "Veterinar"} — ${Number(o.price).toLocaleString()} so'm</div>
-            <div class="op">${o.vet_info?.clinic_name || ""}${o.message ? " · " + o.message : ""}</div>
+            <div class="on">${esc(o.vet_info?.full_name || "Veterinar")} — ${Number(o.price).toLocaleString()} so'm</div>
+            <div class="op">${esc(o.vet_info?.clinic_name || "")}${o.message ? " · " + esc(o.message) : ""}</div>
           </div>
           ${canAccept ? `<button class="accept-btn">${I18N.t("accept")}</button>` : ""}`;
         const acceptBtn = row.querySelector(".accept-btn");
@@ -437,14 +441,47 @@
 
   let vetsTotalCount = 0;
 
+  function buildClinicParams() {
+    const params = new URLSearchParams();
+    if (activeSpec) params.set("spec", activeSpec);
+    const q = document.getElementById("search-q").value.trim();
+    if (q) params.set("q", q);
+    if (coords.lat != null) {
+      params.set("lat", coords.lat);
+      params.set("lng", coords.lng);
+      if (document.getElementById("sort").value === "distance") params.set("sort", "distance");
+    }
+    if (me && me.city) params.set("city", me.city);
+    return params;
+  }
+
+  function renderResultList(ul, items, append) {
+    if (listKind === "clinics") renderClinicList(ul, items, append);
+    else renderVetList(ul, items, append);
+  }
+
+  function setListKind(kind) {
+    listKind = kind;
+    document.querySelectorAll("#kind-seg .kind-btn").forEach((b) => b.classList.toggle("active", b.dataset.kind === kind));
+    // "Uyga boradi / Online" filtri faqat vetlarga tegishli.
+    document.getElementById("type-filter").hidden = kind === "clinics";
+    search();
+  }
+
   async function search() {
-    const data = await api("/vets/?" + buildSearchParams().toString());
+    const kind = listKind;
+    const data = kind === "clinics"
+      ? await api("/clinics/?" + buildClinicParams().toString())
+      : await api("/vets/?" + buildSearchParams().toString());
+    if (kind !== listKind) return; // foydalanuvchi javob kelguncha boshqasini tanladi
     const vets = data.results || data;
     vetsNextUrl = data.next || null;
     currentVetsList = vets;
     vetsTotalCount = data.count != null ? data.count : vets.length;
-    document.getElementById("vets-count").textContent = data.count ? I18N.t("vets_count", { n: data.count }) : I18N.t("vets_count_empty");
-    renderVetList(document.getElementById("vet-list"), vets);
+    document.getElementById("vets-count").textContent = kind === "clinics"
+      ? I18N.t("clinics_count", { n: vetsTotalCount })
+      : (data.count ? I18N.t("vets_count", { n: data.count }) : I18N.t("vets_count_empty"));
+    renderResultList(document.getElementById("vet-list"), vets);
     document.getElementById("empty").hidden = vets.length > 0;
     document.getElementById("vets-load-more").hidden = !vetsNextUrl;
     if (vetsView === "map") { renderMapMarkers(); updateMapBottomCard(); }
@@ -456,7 +493,7 @@
     vetsNextUrl = data.next || null;
     const newVets = data.results || data;
     currentVetsList = currentVetsList.concat(newVets);
-    renderVetList(document.getElementById("vet-list"), newVets, true);
+    renderResultList(document.getElementById("vet-list"), newVets, true);
     document.getElementById("vets-load-more").hidden = !vetsNextUrl;
     if (vetsView === "map") { renderMapMarkers(); updateMapBottomCard(); }
   }
@@ -552,13 +589,13 @@
   }
 
   function createVetPlacemark(v) {
-    const specTxt = v.specializations.map((s) => s.icon || s.name).join(" ");
+    const specTxt = esc(v.specializations.map((s) => s.icon || s.name).join(" "));
     const options = avatarMarkerOptions(v.photo, "vet-marker", v.specializations[0]?.icon || "👨‍⚕️");
     const placemark = new ymaps.Placemark([v.lat, v.lng], {
-      balloonContentHeader: v.full_name || "Veterinar",
+      balloonContentHeader: esc(v.full_name || "Veterinar"),
       balloonContentBody: `
         <div style="min-width:160px;font-family:inherit">
-          <span style="color:#93887e;font-size:12px">${v.clinic_name || v.city || ""} ${specTxt}</span><br/>
+          <span style="color:#93887e;font-size:12px">${esc(v.clinic_name || v.city || "")} ${specTxt}</span><br/>
           ⭐ ${Number(v.rating_avg).toFixed(1)}
           <button id="map-open-${v.id}" style="display:block;margin-top:6px;width:100%;padding:7px;border:none;border-radius:8px;background:#e8774a;color:#fff;font-weight:700;cursor:pointer">Ko'rish</button>
         </div>`,
@@ -570,15 +607,35 @@
     return placemark;
   }
 
+  function createClinicPlacemark(c) {
+    const placemark = new ymaps.Placemark([c.lat, c.lng], {
+      balloonContentHeader: esc(c.name),
+      balloonContentBody: `
+        <div style="min-width:170px;font-family:inherit">
+          <span style="color:#93887e;font-size:12px">${esc(c.address || c.district || "")}</span><br/>
+          🕒 ${c.is_24h ? "24/7" : esc(c.working_hours || "—")}
+          <button id="map-open-c${c.id}" style="display:block;margin-top:6px;width:100%;padding:7px;border:none;border-radius:8px;background:#e8774a;color:#fff;font-weight:700;cursor:pointer">Ko'rish</button>
+        </div>`,
+    }, avatarMarkerOptions(c.logo, "clinic-marker", "🏥"));
+    placemark.events.add("balloonopen", () => {
+      const btn = document.getElementById("map-open-c" + c.id);
+      if (btn) btn.onclick = () => openClinicDetail(c.id);
+    });
+    return placemark;
+  }
+
   function renderMapMarkers() {
     if (!yandexMap) return;
     yandexMap.geoObjects.removeAll();
     yandexUserMarker = null;
     mapPlacemarks = [];
     const withCoords = currentVetsList.filter((v) => v.lat != null && v.lng != null);
-    document.getElementById("map-empty").hidden = withCoords.length > 0;
+    // Matnni har safar qayta yozamiz — aks holda oldingi "Xarita yuklanmoqda..." qolib ketadi.
+    const emptyEl = document.getElementById("map-empty");
+    emptyEl.textContent = I18N.t("map_empty");
+    emptyEl.hidden = withCoords.length > 0;
     withCoords.forEach((v) => {
-      const placemark = createVetPlacemark(v);
+      const placemark = listKind === "clinics" ? createClinicPlacemark(v) : createVetPlacemark(v);
       yandexMap.geoObjects.add(placemark);
       mapPlacemarks.push({ placemark, v });
     });
@@ -601,14 +658,14 @@
   }
 
   function vetCardHtml(v) {
-    const specsTxt = v.specializations.map((s) => s.icon || s.name).join(" ");
+    const specsTxt = esc(v.specializations.map((s) => s.icon || s.name).join(" "));
     const dist = v.distance_km != null ? `📍 ${v.distance_km} km` : "";
-    const avatarInner = v.photo ? `<img src="${v.photo}" alt="" />` : (v.specializations[0]?.icon || "👨‍⚕️");
+    const avatarInner = v.photo ? `<img src="${esc(v.photo)}" alt="" />` : esc(v.specializations[0]?.icon || "👨‍⚕️");
     return `
       <div class="avatar">${avatarInner}</div>
       <div class="info">
-        <div class="name">${v.full_name || "Veterinar"}</div>
-        <div class="sub">${v.clinic_name || v.city || ""} ${specsTxt}</div>
+        <div class="name">${esc(v.full_name || "Veterinar")}</div>
+        <div class="sub">${esc(v.clinic_name || v.city || "")} ${specsTxt}</div>
         <div class="badges">
           ${v.is_top ? '<span class="badge top">TOP</span>' : ""}
           ${v.is_verified ? '<span class="badge verified">✓ Tasdiqlangan</span>' : ""}
@@ -632,6 +689,79 @@
     });
   }
 
+  // --- Klinikalar ---
+  function clinicCardHtml(c) {
+    const dist = c.distance_km != null ? `📍 ${c.distance_km} km` : "";
+    const avatarInner = c.logo ? `<img src="${esc(c.logo)}" alt="" />` : "🏥";
+    const place = [c.district, c.address].filter(Boolean).join(", ") || c.city || "";
+    return `
+      <div class="avatar clinic-avatar">${avatarInner}</div>
+      <div class="info">
+        <div class="name">${esc(c.name)}</div>
+        <div class="sub">${esc(place)}</div>
+        <div class="badges">
+          ${c.is_24h ? '<span class="badge verified">24/7</span>' : (c.working_hours ? `<span class="badge">🕒 ${esc(c.working_hours)}</span>` : "")}
+          ${c.vets_count ? `<span class="badge avail">${I18N.t("clinic_vets_badge", { n: c.vets_count })}</span>` : ""}
+        </div>
+      </div>
+      <div class="right"><div class="distance">${dist}</div></div>`;
+  }
+
+  function renderClinicList(ul, clinics, append) {
+    if (!append) ul.innerHTML = "";
+    clinics.forEach((c) => {
+      const li = document.createElement("li");
+      li.className = "vet-card";
+      li.innerHTML = clinicCardHtml(c);
+      li.onclick = () => openClinicDetail(c.id);
+      ul.appendChild(li);
+    });
+  }
+
+  function openExternal(url) {
+    if (tg && tg.openLink) tg.openLink(url); else window.open(url, "_blank");
+  }
+
+  async function openClinicDetail(id) {
+    vetDetailFrom = currentTab;
+    const box = document.getElementById("detail-content");
+    box.innerHTML = `<p class="center muted">${I18N.t("loading")}</p>`;
+    showScreen("screen-vet-detail");
+    const params = coords.lat != null ? `?lat=${coords.lat}&lng=${coords.lng}` : "";
+    let c;
+    try { c = await api("/clinics/" + id + "/" + params); } catch (e) { box.innerHTML = `<p class="center muted">${esc(friendlyError(e))}</p>`; return; }
+    const specChips = c.specializations.map((s) => `<span class="pill">${esc(s.icon ? s.icon + " " : "")}${esc(s.name)}</span>`).join("");
+    const services = (c.services || []).map((line) => `<div class="svc-row"><span>${esc(line)}</span></div>`).join("");
+    const place = [c.city, c.district, c.address].filter(Boolean).join(", ");
+    box.innerHTML = `
+      <div class="vd-banner">
+        <div class="avatar-xl clinic-avatar">${c.logo ? `<img src="${esc(c.logo)}" alt="" />` : "🏥"}</div>
+        <h2>${esc(c.name)}</h2>
+        <div class="spec">${I18N.t("clinic_label")}</div>
+        ${c.is_verified ? `<div class="verified-row">${I18N.t("clinic_verified")}</div>` : ""}
+      </div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="v">${c.vets_count}</div><div class="l">${I18N.t("clinic_vets_stat")}</div></div>
+        <div class="stat-box"><div class="v">${c.distance_km != null ? c.distance_km + " km" : "—"}</div><div class="l">${I18N.t("vd_distance_stat")}</div></div>
+        <div class="stat-box"><div class="v">${c.is_24h ? "24/7" : "🕒"}</div><div class="l">${c.is_24h ? I18N.t("clinic_24h") : esc(c.working_hours || "—")}</div></div>
+      </div>
+      <div class="clinic-actions">
+        ${c.phone ? `<a class="clinic-act primary" href="tel:${esc(c.phone)}">📞 ${I18N.t("clinic_call")}</a>` : ""}
+        ${c.lat != null ? `<button type="button" class="clinic-act" id="clinic-route">🧭 ${I18N.t("clinic_route")}</button>` : ""}
+      </div>
+      ${place ? `<div class="detail-card"><h3>${I18N.t("clinic_address")}</h3><p style="margin:0;font-size:13.5px">📍 ${esc(place)}</p></div>` : ""}
+      ${c.description ? `<div class="detail-card"><h3>${I18N.t("vd_about_title")}</h3><p style="margin:0;font-size:13.5px;white-space:pre-line">${esc(c.description)}</p></div>` : ""}
+      ${specChips ? `<div class="detail-card"><h3>${I18N.t("vd_spec_title")}</h3><div class="pill-row">${specChips}</div></div>` : ""}
+      ${services ? `<div class="detail-card"><h3>${I18N.t("vd_services_title")}</h3>${services}</div>` : ""}
+      <div class="detail-card"><h3>${I18N.t("clinic_vets_title")}</h3>
+        ${c.vets.length ? `<ul class="vet-list clinic-vets" id="clinic-vets"></ul>` : `<p class="muted" style="margin:0">${I18N.t("clinic_no_vets")}</p>`}
+      </div>`;
+    if (c.vets.length) renderVetList(document.getElementById("clinic-vets"), c.vets);
+    const routeBtn = document.getElementById("clinic-route");
+    // rtext="~lat,lng" — boshlanish nuqtasi bo'sh: Yandex foydalanuvchi joyidan yo'l chizadi.
+    if (routeBtn) routeBtn.onclick = () => openExternal(`https://yandex.uz/maps/?rtext=~${c.lat},${c.lng}&rtt=auto`);
+  }
+
   // --- Vet sahifasi + chaqirish ---
   async function openVetDetail(id) {
     vetDetailFrom = currentTab;
@@ -639,22 +769,23 @@
     showScreen("screen-vet-detail");
     const v = await api("/vets/" + id + "/");
     const services = (v.services || [])
-      .map((s) => `<div class="svc-row selectable" data-id="${s.id}" data-title="${s.title}" data-price="${s.price}"><span>${s.title}</span><span>${Number(s.price).toLocaleString()} so'm</span></div>`)
+      .map((s) => `<div class="svc-row selectable" data-id="${s.id}" data-title="${esc(s.title)}" data-price="${esc(s.price)}"><span>${esc(s.title)}</span><span>${Number(s.price).toLocaleString()} so'm</span></div>`)
       .join("");
-    const specChips = v.specializations.map((s) => `<span class="pill">${s.icon ? s.icon + " " : ""}${s.name}</span>`).join("") || '<span class="muted">—</span>';
+    const specChips = v.specializations.map((s) => `<span class="pill">${esc(s.icon ? s.icon + " " : "")}${esc(s.name)}</span>`).join("") || '<span class="muted">—</span>';
 
     const types = [];
     if (v.accepts_home_visit) types.push(["home", I18N.t("type_home_short")]);
     if (v.accepts_online) types.push(["online", I18N.t("type_online")]);
     types.push(["contact", I18N.t("type_contact")]);
 
-    const avatarXlInner = v.photo ? `<img src="${v.photo}" alt="" />` : (v.specializations[0]?.icon || "👨‍⚕️");
-    const petChips = myPets.map((p) => `<span class="chip" data-pet-id="${p.id}">🐾 ${p.name}</span>`).join("");
+    const avatarXlInner = v.photo ? `<img src="${esc(v.photo)}" alt="" />` : esc(v.specializations[0]?.icon || "👨‍⚕️");
+    const petChips = myPets.map((p) => `<span class="chip" data-pet-id="${p.id}">🐾 ${esc(p.name)}</span>`).join("");
     document.getElementById("detail-content").innerHTML = `
       <div class="vd-banner">
         <div class="avatar-xl">${avatarXlInner}</div>
-        <h2>${v.full_name || I18N.t("unnamed_vet")}</h2>
-        <div class="spec">${v.specializations[0]?.name || v.clinic_name || ""}</div>
+        <h2>${esc(v.full_name || I18N.t("unnamed_vet"))}</h2>
+        <div class="spec">${esc(v.specializations[0]?.name || v.clinic_name || "")}</div>
+        ${v.clinic_info ? `<button type="button" class="clinic-link" id="vd-clinic">🏥 ${esc(v.clinic_info.name)} ›</button>` : ""}
         ${v.is_verified ? `<div class="verified-row">${I18N.t("vd_verified")}</div>` : ""}
       </div>
       <div class="stat-row">
@@ -662,7 +793,7 @@
         <div class="stat-box"><div class="v">${v.experience_years}</div><div class="l">${I18N.t("vd_years_stat")}</div></div>
         <div class="stat-box"><div class="v">${v.distance_km != null ? v.distance_km + " km" : "—"}</div><div class="l">${I18N.t("vd_distance_stat")}</div></div>
       </div>
-      ${v.bio ? `<div class="detail-card"><h3>${I18N.t("vd_about_title")}</h3><p style="margin:0;font-size:13.5px">${v.bio}</p></div>` : ""}
+      ${v.bio ? `<div class="detail-card"><h3>${I18N.t("vd_about_title")}</h3><p style="margin:0;font-size:13.5px">${esc(v.bio)}</p></div>` : ""}
       <div class="detail-card"><h3>${I18N.t("vd_spec_title")}</h3><div class="pill-row">${specChips}</div></div>
       <div class="detail-card" id="services-card">
         <h3>${I18N.t("vd_services_title")}${v.min_price != null ? ` <span class="badge-verified">${I18N.t("vd_from_price", { n: Number(v.min_price).toLocaleString() })}</span>` : ""}</h3>
@@ -676,22 +807,52 @@
           ${types.map((t, i) => `<div class="type-opt${i === 0 ? " active" : ""}" data-type="${t[0]}">${t[1]}</div>`).join("")}
         </div>
         ${myPets.length ? `<p class="muted" style="margin:0 0 6px;font-size:12px">${I18N.t("vd_pet_title")}</p><div class="chips" id="call-pet-picker" style="padding:0 0 8px">${petChips}</div>` : ""}
-        <input type="text" id="call-address" placeholder="Manzil (ko'cha, uy) — GPS bo'lmasa ham yordam beradi" data-i18n-ph="vd_address_placeholder" style="margin-bottom:8px" ${types[0][0] !== "home" ? "hidden" : ""} />
-        <label class="muted" style="font-size:12px;display:block;margin-bottom:4px">${I18N.t("vd_scheduled_label")}</label>
-        <input type="datetime-local" id="call-scheduled" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:14px;margin-bottom:8px" />
-        <textarea id="call-note" rows="2" placeholder="Muammoni qisqacha yozing..." data-i18n-ph="vd_note_placeholder"></textarea>
+        <div id="call-address-box" class="call-address-box" ${types[0][0] !== "home" ? "hidden" : ""}>
+          <div class="call-label">${I18N.t("vd_address_label")}</div>
+          <div class="type-opts call-where" id="call-where">
+            <div class="type-opt active" data-where="here">${I18N.t("vd_where_here")}</div>
+            <div class="type-opt" data-where="map">${I18N.t("vd_where_map")}</div>
+          </div>
+          <div class="call-geo" id="call-geo"></div>
+          <div id="call-pick-wrap" hidden>
+            <p class="muted call-pick-hint">${I18N.t("vd_pick_hint")}</p>
+            <div id="call-pick-map" class="call-pick-map"></div>
+          </div>
+          <div class="call-label">${I18N.t("vd_landmark_label")}</div>
+          <input type="text" id="call-address" class="call-field" placeholder="${I18N.t("vd_address_placeholder")}" />
+        </div>
+        <div class="call-label">${I18N.t("vd_note_label")}</div>
+        <textarea id="call-note" class="call-field" rows="3" placeholder="${I18N.t("vd_note_placeholder")}"></textarea>
+        <div class="call-label">${I18N.t("vd_scheduled_label")}</div>
+        <input type="datetime-local" id="call-scheduled" class="call-field call-datetime" />
       </div>
       <button class="btn-primary" id="call-btn">${I18N.t("vd_send")}</button>`;
     I18N.applyStatic();
+    const clinicLink = document.getElementById("vd-clinic");
+    if (clinicLink) clinicLink.onclick = () => openClinicDetail(v.clinic_info.id);
 
     let chosenType = types[0][0];
     const addressInput = document.getElementById("call-address");
+    const addressBox = document.getElementById("call-address-box");
+    callWhere = "here";
+    callPick = null;
+    if (callPickMap) { callPickMap.destroy(); callPickMap = null; callPickMark = null; }
+    renderCallGeo();
+    document.querySelectorAll("#call-where .type-opt").forEach((el) => {
+      el.onclick = () => {
+        document.querySelectorAll("#call-where .type-opt").forEach((x) => x.classList.toggle("active", x === el));
+        callWhere = el.dataset.where;
+        document.getElementById("call-geo").hidden = callWhere !== "here";
+        document.getElementById("call-pick-wrap").hidden = callWhere !== "map";
+        if (callWhere === "map") initCallPickMap();
+      };
+    });
     document.querySelectorAll("#type-opts .type-opt").forEach((el) => {
       el.onclick = () => {
         document.querySelectorAll("#type-opts .type-opt").forEach((x) => x.classList.remove("active"));
         el.classList.add("active");
         chosenType = el.dataset.type;
-        addressInput.hidden = chosenType !== "home";
+        addressBox.hidden = chosenType !== "home";
       };
     });
 
@@ -719,6 +880,14 @@
     const callBtn = document.getElementById("call-btn");
     callBtn.onclick = () => withBusy(callBtn, async () => {
       const noteText = document.getElementById("call-note").value.trim();
+      if (!noteText && !chosenService) {
+        document.getElementById("call-note").focus();
+        return popup(I18N.t("vd_note_required"));
+      }
+      if (chosenType === "home" && !addressInput.value.trim()) {
+        addressInput.focus();
+        return popup(I18N.t("vd_address_required"));
+      }
       const payload = {
         vet: v.id,
         type: chosenType,
@@ -729,11 +898,15 @@
       if (chosenPetId) payload.pet = chosenPetId;
       const scheduledVal = document.getElementById("call-scheduled").value;
       if (scheduledVal) payload.scheduled_at = new Date(scheduledVal).toISOString();
+      if (chosenType === "home" && callWhere === "map") {
+        if (!callPick) return popup(I18N.t("vd_pick_required"));
+        payload.lat = callPick.lat;
+        payload.lng = callPick.lng;
+      } else {
+        const loc = await ensureClientLocation();
+        if (loc) { payload.lat = loc.lat; payload.lng = loc.lng; }
+      }
       if (chosenType === "home") {
-        if (coords.lat != null) {
-          payload.lat = coords.lat;
-          payload.lng = coords.lng;
-        }
         const address = addressInput.value.trim();
         if (address) payload.address = address;
       }
@@ -751,6 +924,66 @@
     loadReviews(v.id);
   }
 
+  // "Boshqa manzilga" chaqirish: qishloqlarda ko'cha nomi bo'lmasligi mumkin, shuning uchun
+  // manzil matndan emas, mijoz xaritada o'zi qo'ygan nuqtadan olinadi.
+  let callWhere = "here";
+  let callPick = null;
+  let callPickMap = null;
+  let callPickMark = null;
+
+  function callPickStart() {
+    if (coords.lat != null) return { center: [coords.lat, coords.lng], zoom: 15 };
+    if (me && me.lat != null) return { center: [me.lat, me.lng], zoom: 15 };
+    const region = (window.UZ_REGIONS || []).find((r) => me && r.name === me.city);
+    if (region && region.center) return { center: region.center, zoom: 10 };
+    return { center: TASHKENT_CENTER, zoom: 10 };
+  }
+
+  function setCallPick(lat, lng) {
+    callPick = { lat, lng };
+    if (callPickMark) callPickMark.geometry.setCoordinates([lat, lng]);
+  }
+
+  function initCallPickMap() {
+    if (callPickMap) return;
+    waitForYmaps(() => {
+      if (callPickMap || !document.getElementById("call-pick-map")) return;
+      const start = callPickStart();
+      callPickMap = new ymaps.Map("call-pick-map", { center: start.center, zoom: start.zoom, controls: ["zoomControl"] });
+      callPickMark = new ymaps.Placemark(start.center, {}, { draggable: true, preset: "islands#redHomeIcon" });
+      callPickMark.events.add("dragend", () => {
+        const c = callPickMark.geometry.getCoordinates();
+        setCallPick(c[0], c[1]);
+      });
+      callPickMap.geoObjects.add(callPickMark);
+      callPickMap.events.add("click", (e) => {
+        const c = e.get("coords");
+        setCallPick(c[0], c[1]);
+      });
+      // Boshlang'ich nuqta faqat taxmin — mijoz o'zi bosmaguncha tanlangan hisoblanmaydi.
+      callPick = null;
+    });
+  }
+
+  // Chaqiruv formasidagi joylashuv holati: aniqlangan bo'lsa belgisi, bo'lmasa GPS tugmasi.
+  function renderCallGeo() {
+    const box = document.getElementById("call-geo");
+    if (!box) return;
+    if (coords.lat != null) {
+      box.className = "call-geo ok";
+      box.innerHTML = `✅ ${I18N.t("vd_geo_found")}`;
+      return;
+    }
+    box.className = "call-geo";
+    box.innerHTML = `<button type="button" class="btn-secondary" id="call-geo-btn" style="margin-top:0">${I18N.t("vd_geo_btn")}</button>`;
+    const btn = document.getElementById("call-geo-btn");
+    btn.onclick = () => withBusy(btn, async () => {
+      const loc = await ensureClientLocation();
+      if (!loc) popup(I18N.t("vd_geo_failed"));
+      renderCallGeo();
+    });
+  }
+
   async function loadReviews(vetId) {
     const box = document.getElementById("reviews");
     try {
@@ -763,8 +996,8 @@
       box.innerHTML = reviews
         .map((r) => `
           <div class="review">
-            <div class="review-head">${"⭐".repeat(r.stars)} <span class="muted">${r.client_name}</span> <span class="muted" style="font-size:11px">· ${fmtReviewDate(r.created_at)}</span></div>
-            ${r.comment ? `<div class="review-body">${r.comment}</div>` : ""}
+            <div class="review-head">${"⭐".repeat(r.stars)} <span class="muted">${esc(r.client_name)}</span> <span class="muted" style="font-size:11px">· ${fmtReviewDate(r.created_at)}</span></div>
+            ${r.comment ? `<div class="review-body">${esc(r.comment)}</div>` : ""}
           </div>`)
         .join("") + (data.next ? `<button class="btn-secondary" id="reviews-more" style="width:100%;margin-top:8px">${I18N.t("load_more")}</button>` : "");
       const moreBtn = document.getElementById("reviews-more");
@@ -783,8 +1016,8 @@
       box.insertAdjacentHTML("beforeend", reviews
         .map((r) => `
           <div class="review">
-            <div class="review-head">${"⭐".repeat(r.stars)} <span class="muted">${r.client_name}</span> <span class="muted" style="font-size:11px">· ${fmtReviewDate(r.created_at)}</span></div>
-            ${r.comment ? `<div class="review-body">${r.comment}</div>` : ""}
+            <div class="review-head">${"⭐".repeat(r.stars)} <span class="muted">${esc(r.client_name)}</span> <span class="muted" style="font-size:11px">· ${fmtReviewDate(r.created_at)}</span></div>
+            ${r.comment ? `<div class="review-body">${esc(r.comment)}</div>` : ""}
           </div>`)
         .join(""));
       if (data.next) {
@@ -820,9 +1053,9 @@
     box.innerHTML = `
       <div class="dbox">${TYPE_ICON[active.type] || "📋"}</div>
       <div class="info">
-        <div class="t">${active.vet_info?.full_name || "Veterinar"}</div>
-        <div class="s"><span class="st st-${active.status}">${statusLabel(active.status)}</span> · ${active.vet_info?.clinic_name || ""}</div>
-        ${active.vet_info?.phone ? `<div class="s"><a class="tel-link" href="tel:${active.vet_info.phone}" onclick="event.stopPropagation()">📞 ${active.vet_info.phone}</a></div>` : ""}
+        <div class="t">${esc(active.vet_info?.full_name || "Veterinar")}</div>
+        <div class="s"><span class="st st-${esc(active.status)}">${statusLabel(active.status)}</span> · ${esc(active.vet_info?.clinic_name || "")}</div>
+        ${active.vet_info?.phone ? `<div class="s"><a class="tel-link" href="tel:${esc(active.vet_info.phone)}" onclick="event.stopPropagation()">📞 ${esc(active.vet_info.phone)}</a></div>` : ""}
       </div>`;
     box.onclick = () => { goTab("visits"); };
   }
@@ -844,12 +1077,12 @@
         <div class="visit-top">
           <div class="visit-date"><div class="d">${day}</div><div class="m">${month}</div></div>
           <div class="visit-info">
-            <div class="t">${TYPE_ICON[r.type] || ""} ${r.vet_info?.full_name || "Veterinar"}</div>
-            <div class="s">${r.note || r.vet_info?.clinic_name || ""}</div>
-            ${r.vet_info?.phone ? `<div class="s"><a class="tel-link" href="tel:${r.vet_info.phone}">📞 ${r.vet_info.phone}</a></div>` : ""}
+            <div class="t">${TYPE_ICON[r.type] || ""} ${esc(r.vet_info?.full_name || "Veterinar")}</div>
+            <div class="s">${esc(r.note || r.vet_info?.clinic_name || "")}</div>
+            ${r.vet_info?.phone ? `<div class="s"><a class="tel-link" href="tel:${esc(r.vet_info.phone)}">📞 ${esc(r.vet_info.phone)}</a></div>` : ""}
             <div class="time">${fmtTime(r.created_at)} ${I18N.t("sent_ago")}</div>
           </div>
-          <span class="st st-${r.status}">${statusLabel(r.status)}</span>
+          <span class="st st-${esc(r.status)}">${statusLabel(r.status)}</span>
         </div>
         ${canReview ? `<button class="btn-secondary review-btn" style="margin-top:10px;width:100%">${r.my_review ? I18N.t("review_edit") : I18N.t("review")}</button>` : ""}
         ${canCancel ? `<button class="btn-secondary cancel-btn" style="margin-top:10px;width:100%;color:var(--red)">${I18N.t("cancel")}</button>` : ""}
@@ -880,7 +1113,7 @@
       <div class="stars-pick" id="stars-pick">
         ${[1, 2, 3, 4, 5].map((n) => `<span class="star" data-n="${n}">☆</span>`).join("")}
       </div>
-      <textarea class="review-text" rows="2" placeholder="Izoh (ixtiyoriy)">${existingReview ? existingReview.comment || "" : ""}</textarea>
+      <textarea class="review-text" rows="2" placeholder="Izoh (ixtiyoriy)">${esc(existingReview ? existingReview.comment || "" : "")}</textarea>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn-primary review-send" style="flex:1">${I18N.t("save")}</button>
         ${existingReview ? `<button class="btn-secondary review-delete" style="color:var(--red)">${I18N.t("delete")}</button>` : ""}
@@ -962,7 +1195,7 @@
     const name = [me.first_name, me.last_name].filter(Boolean).join(" ") || me.username || "Foydalanuvchi";
     const avatarEl = document.getElementById("profile-avatar");
     if (me.photo) {
-      avatarEl.innerHTML = `<img src="${me.photo}" alt="" />`;
+      avatarEl.innerHTML = `<img src="${esc(me.photo)}" alt="" />`;
     } else {
       avatarEl.textContent = name.charAt(0).toUpperCase();
     }
@@ -1053,6 +1286,23 @@
     });
   }
 
+  // So'rov yuborishdan oldin: ma'lum joylashuv (GPS yoki profil) bo'lmasa GPS'ni bir marta so'raymiz.
+  async function ensureClientLocation() {
+    if (coords.lat != null) return { lat: coords.lat, lng: coords.lng };
+    try {
+      // Geolocation'ning o'z timeout'i ruxsat oynasi javobsiz turganda ishlamaydi — umumiy chegara qo'yamiz.
+      const pos = await Promise.race([
+        getCurrentPositionAsync({ timeout: 8000 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("geo-timeout")), 10000)),
+      ]);
+      coords.lat = pos.coords.latitude;
+      coords.lng = pos.coords.longitude;
+      return { lat: coords.lat, lng: coords.lng };
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function captureProfileGeo() {
     try {
       const pos = await getCurrentPositionAsync({ timeout: 10000 });
@@ -1088,11 +1338,11 @@
     myPets.forEach((p) => {
       const row = document.createElement("div");
       row.className = "pet-row";
-      const sub = [p.breed, p.age ? p.age + " yosh" : null].filter(Boolean).join(" · ") || p.species;
+      const sub = esc([p.breed, p.age ? p.age + " yosh" : null].filter(Boolean).join(" · ") || p.species);
       row.innerHTML = `
-        <div class="pe" title="Rasm qo'yish uchun bosing">${p.photo ? `<img src="${p.photo}" alt="" />` : "🐾"}</div>
+        <div class="pe" title="Rasm qo'yish uchun bosing">${p.photo ? `<img src="${esc(p.photo)}" alt="" />` : "🐾"}</div>
         <input type="file" class="pet-photo-input" accept="image/png,image/jpeg,image/webp" style="display:none" />
-        <div style="flex:1;min-width:0"><div class="pn">${p.name}</div><div class="ps">${sub}</div></div>
+        <div style="flex:1;min-width:0"><div class="pn">${esc(p.name)}</div><div class="ps">${sub}</div></div>
         <button class="edit" style="background:none;border:none;font-size:15px;cursor:pointer;padding:4px">✎</button>
         <button class="del" style="background:none;border:none;color:var(--red);font-size:17px;cursor:pointer;padding:4px">🗑</button>`;
       const delBtn = row.querySelector(".del");
@@ -1120,15 +1370,15 @@
     form.className = "pet-edit-form";
     form.innerHTML = `
       <div class="row2">
-        <input type="text" class="f-breed" placeholder="Zoti (ixtiyoriy)" value="${p.breed || ""}" />
-        <input type="number" class="f-age" placeholder="Yoshi" min="0" max="60" value="${p.age || ""}" />
+        <input type="text" class="f-breed" placeholder="Zoti (ixtiyoriy)" value="${esc(p.breed || "")}" />
+        <input type="number" class="f-age" placeholder="Yoshi" min="0" max="60" value="${esc(p.age || "")}" />
       </div>
       <select class="f-gender">
         <option value="unknown"${p.gender === "unknown" ? " selected" : ""}>Jinsi: Noma'lum</option>
         <option value="male"${p.gender === "male" ? " selected" : ""}>Jinsi: Erkak</option>
         <option value="female"${p.gender === "female" ? " selected" : ""}>Jinsi: Urg'ochi</option>
       </select>
-      <textarea class="f-notes" rows="2" placeholder="Izoh (allergiya, xronik kasallik va h.k.)">${p.notes || ""}</textarea>
+      <textarea class="f-notes" rows="2" placeholder="Izoh (allergiya, xronik kasallik va h.k.)">${esc(p.notes || "")}</textarea>
       <button class="btn-primary f-save">Saqlash</button>`;
     row.appendChild(form);
     const saveBtn = form.querySelector(".f-save");
@@ -1345,8 +1595,8 @@
     li.innerHTML = `
       <div class="notif-icon">${NOTIF_ICON[n.kind] || "🔔"}</div>
       <div class="notif-body">
-        <div class="t">${n.title || n.kind_display}</div>
-        ${n.body ? `<div class="s">${n.body}</div>` : ""}
+        <div class="t">${esc(n.title || n.kind_display)}</div>
+        ${n.body ? `<div class="s">${esc(n.body)}</div>` : ""}
         <div class="time">${timeAgo(n.created_at)}</div>
       </div>`;
     li.onclick = () => {
@@ -1418,13 +1668,59 @@
   // qoladi — profildagi (yoki viloyat tanlangan) joylashuv zaxira bo'lib xizmat qiladi
   // (10-bo'lim: pilotda aniqlangan kamchilik — avval GPS muvaffaqiyatsiz bo'lsa
   // hech qanday zaxira yo'q edi, "yaqin atrofdagi veterinarlar" hech qachon ishlamasdi).
+  // Tizimning (Telegram/telefon) ruxsat oynasi foydalanuvchi tilida bo'lmasligi mumkin va
+  // uni o'zgartirib bo'lmaydi — shuning uchun avval o'zimizning o'zbekcha tushuntirishimiz chiqadi.
+  const GEO_ASKED_KEY = "geo_asked";
+  const GEO_LATER_KEY = "geo_later_until";
+  const GEO_LATER_DAYS = 3;
+  let geoPromptPending = false;
+
+  function storageGet(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+
+  function storageSet(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) { /* jim */ }
+  }
+
+  async function geoPermissionState() {
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        return (await navigator.permissions.query({ name: "geolocation" })).state;
+      }
+    } catch (e) { /* ba'zi WebView'larda qo'llab-quvvatlanmaydi */ }
+    return "unknown";
+  }
+
   function requestGeo() {
     if (me && me.lat != null) {
       coords.lat = me.lat;
       coords.lng = me.lng;
       loadHomeVets();
     }
+  }
+
+  // "Profilingizni to'ldiring" oynasidan keyin chaqiriladi — ikki oyna ustma-ust chiqmasin.
+  async function maybeAskGeo() {
     if (!navigator.geolocation) return;
+    const state = await geoPermissionState();
+    if (state === "granted" || storageGet(GEO_ASKED_KEY) === "1") { startGps(); return; }
+    if (state === "denied") return;
+    if (Number(storageGet(GEO_LATER_KEY) || 0) > Date.now()) return;
+    showGeoPrompt();
+  }
+
+  function showGeoPrompt() {
+    if (!document.getElementById("identity-modal").hidden) { geoPromptPending = true; return; }
+    geoPromptPending = false;
+    document.getElementById("geo-modal").hidden = false;
+  }
+
+  function afterIdentityModalClosed() {
+    if (geoPromptPending) showGeoPrompt();
+  }
+
+  function startGps() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         coords.lat = pos.coords.latitude;
@@ -1465,7 +1761,9 @@
       appEl.hidden = false;
       goTab("home");
       maybeShowIdentityOnboarding();
+      maybeAskGeo();
 
+      document.querySelectorAll("#kind-seg .kind-btn").forEach((b) => { b.onclick = () => setListKind(b.dataset.kind); });
       document.getElementById("type-filter").onchange = search;
       document.getElementById("sort").onchange = search;
       document.getElementById("vets-load-more").onclick = loadMoreVets;
@@ -1531,13 +1829,26 @@
         );
         if (ok) {
           document.getElementById("identity-modal").hidden = true;
+          afterIdentityModalClosed();
           goTab("profile");
           const cam = document.getElementById("profile-avatar-cam");
           cam.classList.add("pulse");
           setTimeout(() => cam.classList.remove("pulse"), 2600);
         }
       });
-      document.getElementById("onb-skip").onclick = () => { document.getElementById("identity-modal").hidden = true; };
+      document.getElementById("onb-skip").onclick = () => {
+        document.getElementById("identity-modal").hidden = true;
+        afterIdentityModalClosed();
+      };
+      document.getElementById("geo-allow").onclick = () => {
+        storageSet(GEO_ASKED_KEY, "1");
+        document.getElementById("geo-modal").hidden = true;
+        startGps();
+      };
+      document.getElementById("geo-later").onclick = () => {
+        storageSet(GEO_LATER_KEY, String(Date.now() + GEO_LATER_DAYS * 24 * 3600 * 1000));
+        document.getElementById("geo-modal").hidden = true;
+      };
       document.getElementById("profile-city").onchange = (e) => {
         fillProfileDistrictOptions(e.target.value, null);
         saveProfileLocation();

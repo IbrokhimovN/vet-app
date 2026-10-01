@@ -458,3 +458,52 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.4;
 }
 .tender-note:focus { outline: none; border-color: var(--primary); }
+
+/* Chaqiruv formasi */
+.call-label { font-size: 12.5px; font-weight: 700; color: var(--text); margin: 12px 0 6px; }
+.call-field {
+  display: block; width: 100%; max-width: 100%; margin: 0 0 8px; padding: 11px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--text); font-family: inherit; font-size: 14px;
+}
+.call-field:focus { outline: none; border-color: var(--primary); }
+textarea.call-field { resize: vertical; min-height: 76px; line-height: 1.4; }
+/* iOS'da datetime-local o'z ichki kengligi bilan kartochkadan chiqib ketadi */
+.call-datetime { -webkit-appearance: none; appearance: none; min-height: 44px; min-width: 0; }
+.call-address-box[hidden] { display: none; }
+.call-geo { margin-bottom: 8px; font-size: 12.5px; }
+.call-geo.ok { padding: 9px 11px; border-radius: var(--radius-sm); background: var(--green-soft); color: var(--green); font-weight: 600; }
+.call-geo .btn-secondary { display: block; width: 100%; margin: 0; }
+
+.call-where { margin-bottom: 8px; }
+.call-pick-map { height: 240px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); margin-bottom: 4px; }
+.call-pick-hint { margin: 0 0 6px; font-size: 12px; }
+#call-pick-wrap[hidden], .call-geo[hidden] { display: none; }
+
+.geo-panel { text-align: center; }
+.geo-panel h2 { margin: 4px 0 8px; font-size: 18px; }
+.geo-panel p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.45; }
+.geo-emoji { font-size: 40px; }
+.geo-note { font-size: 12.5px !important; padding: 9px 11px; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--primary-dark); }
+#geo-later { display: block; width: 100%; }
+
+/* ---------- Klinikalar ---------- */
+.kind-seg { margin: 8px 16px 2px; }
+.kind-seg button.active { background: var(--primary); color: #fff; }
+#type-filter[hidden] { display: none; }
+.clinic-avatar { background: #e2edfb !important; }
+.clinic-actions { display: flex; gap: 10px; margin: 0 16px 10px; }
+.clinic-act {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 13px 10px;
+  border-radius: var(--radius-sm); border: 1.5px solid var(--primary); background: var(--card);
+  color: var(--primary-dark); font-weight: 700; font-size: 14px; text-decoration: none; cursor: pointer; font-family: inherit;
+}
+.clinic-act.primary { background: var(--primary); color: #fff; }
+.clinic-link {
+  margin-top: 8px; border: none; background: #fff; color: #2f6fbd; font-weight: 700; font-size: 13px;
+  padding: 6px 12px; border-radius: 20px; cursor: pointer; font-family: inherit;
+}
+.clinic-vets { margin: 0; }
+.clinic-vets .vet-card { box-shadow: none; border: 1px solid var(--border); }
+.clinic-marker .me-marker-pulse { display: none; }
+.clinic-marker .me-marker-dot { border-radius: 14px; border-color: #2f6fbd; background: #e2edfb; }
